@@ -1,6 +1,31 @@
 # Status — 2026-09-28
 
-## Current acceptance — C-0050/C-0051
+## Current documentary acceptance — C-0052
+
+The three-line correction in 77927108893bc7049254749e162f914d8625eb98
+is integrated over efcdaf5. Only README.md and docs/INSTALL.md change in
+that reviewed delta. Codex checked all seven package hashes, the bundle,
+its exact parent and the source diff. Supplied before/after cloud logs show
+CLI 0.4.0 rewriting the old installation command and two prose phrases;
+the corrected template produces all eight Markdown files byte-identically
+in the supplied comparison. The generator used a local template override
+and --skip-install: installation, formatting, build and tests were skipped.
+This closes the documentary transformation review, not the public-install gate.
+
+The README now uses npx to invoke the generator; prose puts punctuation after
+the package-manager name to avoid its text-rewriting rule. The restriction on
+execution in the owner's Mac checkout remains explicit. This status update is
+an additional documentation-only change; it is reviewed statically, without
+claiming another generator run or repeating the unchanged behavioral suites.
+Executable source, configuration and lockfile still match tested 15c65ba.
+
+A separate read-only testnet-evidence helper was reported in C-0052, but its
+source and execution artifacts were not supplied in this package. It has not
+been reviewed or integrated. A third-party contract smoke check cannot establish
+our own deployment, agreement lifecycle or content verification. The pending
+Hedera, public IPFS and external-template gates below remain unchanged.
+
+## Previous integrated acceptance — C-0050/C-0051
 
 The Node 20 compatibility delta b55b656 and the adapted evaluator guide are
 now integrated. C-0051 supplied the missing tested source ref
@@ -40,9 +65,9 @@ explicit pending public evidence, byte-verification limits and transaction rules
 INSTALL removes superseded M2b/formatter claims. Direct Mac execution restrictions
 remain. Static checks found all 14 relative links and four anchors, declared root
 script names and balanced fences, with a clean git diff whitespace check.
-Markdown is excluded from the formatter. The revised guide still needs a short
-review after the official CLI's Markdown transformation; that documentary check
-does not require repeating unchanged behavioral suites.
+Markdown is excluded from the formatter. The documentary transformation review
+was subsequently closed by C-0052 above; no unchanged behavioral suite was
+repeated for those text corrections.
 
 Hedera deployment, public IPFS retrieval and public external-template installation
 remain pending. No account, faucet, public transaction, pinning, repository
@@ -278,15 +303,12 @@ pending. No competition submission or public deployment has been made.
 
 ## Required next
 
-1. Review the adapted guide after CLI Markdown transformation, returning only
-   any necessary documentary correction. Source correspondence for b55b656
-   versus tested 15c65ba is closed; preserve pending public evidence.
-2. Actual Hedera testnet and public IPFS path after applicable direct account,
+1. Actual Hedera testnet and public IPFS path after applicable direct account,
    faucet, pinning and deployment authorization. Verify our deployment receipt,
    deposit/credit/withdraw/refund, tinybar/weibar conversion and custom errors.
-3. Clean external-template installation from an authorized public repository;
+2. Clean external-template installation from an authorized public repository;
    do not substitute the recorded local-template generation for public delivery.
-4. Competition eligibility, fresh competitor check, video and submission authorization.
+3. Competition eligibility, fresh competitor check, video and submission authorization.
 
 No public repo, deployment, paid service, production money or competition submission.
 Current executable source, configuration and lockfile match tested 15c65ba.
