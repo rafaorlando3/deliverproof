@@ -1,4 +1,4 @@
-export default {
+const config = {
   poweredByHeader:false,
   transpilePackages:['@deliverproof/core'],
   webpack(config) {
@@ -10,3 +10,4 @@ export default {
     {key:'Referrer-Policy',value:'no-referrer'}, {key:'Permissions-Policy',value:'camera=(), microphone=(), geolocation=()'}
   ]}]; }
 };
+export default config;

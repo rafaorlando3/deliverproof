@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { createWalletClient, custom, encodeFunctionData, isAddress, keccak256, formatUnits, parseUnits, stringToHex, type Address, type Hex } from 'viem';
 import { deliverProofAbi } from '@deliverproof/core/abi';
 import { prepareArtifact } from '@deliverproof/core/artifact';
@@ -142,7 +143,7 @@ export default function Workspace() {
       `Transaction has a successful receipt, but complete agreement verification is unavailable. Hash: ${tx}`);
   });}
   const readOnly=!t;
-  return <><header className="top"><a className="brand" href="/" aria-label="DeliverProof home"><span className="mark">D</span>DeliverProof</a><span className="pill">{t?.chainId===31337?'LOCAL EVM':'TESTNET ONLY'}</span><button className="secondary" onClick={connect} disabled={!!busy||readOnly}>{account?short(account):'Connect wallet'}</button></header>
+  return <><header className="top"><Link className="brand" href="/" aria-label="DeliverProof home"><span className="mark">D</span>DeliverProof</Link><span className="pill">{t?.chainId===31337?'LOCAL EVM':'TESTNET ONLY'}</span><button className="secondary" onClick={connect} disabled={!!busy||readOnly}>{account?short(account):'Connect wallet'}</button></header>
     <main><section className="intro"><div><p className="eyebrow">A SMALL AGREEMENT. AN EXPLICIT APPROVAL.</p><h1>Verify the delivery.<br/>Then release the credit.</h1><p>Check the file and the chain independently. Approval and withdrawal are separate steps.</p></div><aside className="scope"><strong>No automatic release</strong><p>Silence never pays the supplier. After the review deadline, the buyer can reclaim the deposit, even if a file was delivered.</p><small>No arbitration. No guarantee of quality. Test HBAR only.</small></aside></section>
     {readOnly&&<div className="notice warning"><strong>Deployment not configured.</strong> This source package has no public contract yet. Wallet actions remain disabled until an operator verifies and installs a deployment manifest.</div>}
     <div className="notice" role="status" aria-live="polite">{busy&&<span className="loading" aria-label="Working"/>}{message}</div>
