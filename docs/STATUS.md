@@ -3,7 +3,7 @@
 ## Current acceptance — C-0050/C-0051
 
 The Node 20 compatibility delta b55b656 and the adapted evaluator guide are
-accepted for integration. C-0051 supplied the missing tested source ref
+now integrated. C-0051 supplied the missing tested source ref
 15c65ba336b04e114241628bfa0c3fdcd59b517e; Codex checked all three supplement
 hashes, bundle integrity and the full Git tree comparison. b55b656 and that
 source differ **only in docs/STATUS.md**. Guide commits affect only README.md,
@@ -48,7 +48,7 @@ Hedera deployment, public IPFS retrieval and public external-template installati
 remain pending. No account, faucet, public transaction, pinning, repository
 publication or competition submission was performed in this review.
 
-## Last integrated acceptance — C-0049
+## Previous integrated acceptance — C-0049
 
 Main 9ef66f8 integrates the seven reviewed commits through 6cb74c7. On that main
 commit, executable source, configuration and lockfile are identical to candidate
