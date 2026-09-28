@@ -342,6 +342,70 @@ describe('M2c: janelas com timestamp real no EVM', () => {
   });
 });
 
+describe('lista do VALIDATION-M2.md: RPC que mente de forma coerente (logs e recibos iguais)', () => {
+  async function done() {
+    const t = await deploy(); const a = await create(t);
+    await call(t, buyer, 'fund', [a.id], a.amount); await submit(t, a.id);
+    await call(t, buyer, 'approve', [a.id, await commitmentOf(t, a.id)]);
+    await call(t, supplier, 'withdraw', [a.id]);
+    return { t, a };
+  }
+  const topicOf = (name: string) => { const e = deliverProofAbi.find(x => x.type === 'event' && x.name === name) as unknown as { inputs: readonly { type: string }[] };
+    return keccak256(new TextEncoder().encode(`${name}(${e.inputs.map(i => i.type).join(',')})`)); };
+  /** Troca o mesmo log em getLogs e no recibo, para a mentira passar pelas conferências de consistência. */
+  function rewrite(name: string, fn: (l: ChainLog) => ChainLog): ChainReader {
+    const fix = (l: ChainLog) => l.topics[0] === topicOf(name) ? fn({ ...l }) : l;
+    return lying({
+      logs: async (...p) => (await reader().logs(...p)).map(fix),
+      receipt: async h => { const r = await reader().receipt(h); return r && { ...r, logs: r.logs.map(fix) }; },
+    });
+  }
+  const addrTopic = (a: Address) => ('0x' + a.slice(2).toLowerCase().padStart(64, '0')) as Hex;
+  const amountData = (n: bigint) => ('0x' + n.toString(16).padStart(64, '0')) as Hex;
+  it('crédito para o beneficiário errado: mismatch/credit_mismatch', async () => {
+    const { t, a } = await done();
+    expect(await verifyAgreement(t, a.id, rewrite('CreditAvailable', l => ({ ...l, topics: [l.topics[0]!, l.topics[1]!, addrTopic(buyer)] }))))
+      .toEqual({ status: 'mismatch', code: 'credit_mismatch' });
+  });
+  it('crédito com valor diferente: mismatch/credit_mismatch', async () => {
+    const { t, a } = await done();
+    expect(await verifyAgreement(t, a.id, rewrite('CreditAvailable', l => ({ ...l, data: amountData(a.amount + 1n) }))))
+      .toEqual({ status: 'mismatch', code: 'credit_mismatch' });
+  });
+  it('saque para outra conta ou com outro valor: mismatch/withdrawal_mismatch', async () => {
+    const { t, a } = await done();
+    expect(await verifyAgreement(t, a.id, rewrite('Withdrawn', l => ({ ...l, topics: [l.topics[0]!, l.topics[1]!, addrTopic(stranger)] }))))
+      .toEqual({ status: 'mismatch', code: 'withdrawal_mismatch' });
+    expect(await verifyAgreement(t, a.id, rewrite('Withdrawn', l => ({ ...l, data: amountData(a.amount - 1n) }))))
+      .toEqual({ status: 'mismatch', code: 'withdrawal_mismatch' });
+  });
+  it('aprovação com outro compromisso: mismatch/approval_mismatch', async () => {
+    const { t, a } = await done();
+    expect(await verifyAgreement(t, a.id, rewrite('Approved', l => ({ ...l, topics: [l.topics[0]!, l.topics[1]!, keccak256('0x09')] }))))
+      .toEqual({ status: 'mismatch', code: 'approval_mismatch' });
+  });
+  it('âncora com outro deployer: mismatch/deployment_mismatch', async () => {
+    const { t, a } = await done();
+    expect(await verifyAgreement({ ...t, deployer: stranger }, a.id, reader())).toEqual({ status: 'mismatch', code: 'deployment_mismatch' });
+  });
+  it('histórico acima de 256 eventos: inconclusive/event_limit', async () => {
+    const { t, a } = await done();
+    const all = await reader().logs(t.address, a.id, t.deploymentBlock, await pub.getBlockNumber());
+    const big = Array.from({ length: 257 }, (_, i) => ({ ...all[i % all.length]!, logIndex: 1000 + i }));
+    expect(await verifyAgreement(t, a.id, lying({ logs: async () => big }))).toEqual({ status: 'inconclusive', code: 'event_limit' });
+  });
+  it('o mesmo arquivo em dois acordos: compromissos diferentes, cada um verifica só o seu; o compromisso do outro não aprova', async () => {
+    const t = await deploy(); const a1 = await create(t); const a2 = await create(t);
+    for (const a of [a1, a2]) { await call(t, buyer, 'fund', [a.id], a.amount); await submit(t, a.id, 'mesmo arquivo'); }
+    const c1 = await commitmentOf(t, a1.id), c2 = await commitmentOf(t, a2.id);
+    expect(c1).not.toBe(c2);
+    const r1 = await verifyAgreement(t, a1.id, reader()), r2 = await verifyAgreement(t, a2.id, reader());
+    if (r1.status !== 'verified' || r2.status !== 'verified') throw new Error('esperava verified nos dois');
+    expect(r1.delivery?.cid).toBe(r2.delivery?.cid);
+    await expect(pub.simulateContract({ account: buyer, address: t.address, abi: DP.abi, functionName: 'approve', args: [a1.id, c2] })).rejects.toThrow(/WrongCommitment/);
+  });
+});
+
 describe('classificações decididas no M2c', () => {
   it('carteira-contrato com evento real é inconclusive/unsupported_caller', async () => {
     const t = await deploy(); const { wallet: w } = await helpers();
