@@ -1,4 +1,4 @@
-import { CarReader } from '@ipld/car';
+import { CarBlockIterator } from '@ipld/car';
 import { exporter } from 'ipfs-unixfs-exporter';
 import { CID } from 'multiformats/cid';
 import { sha256 } from 'multiformats/hashes/sha2';
@@ -27,12 +27,17 @@ export async function verifyCar(car: Uint8Array, delivery: Delivery, expectedCom
   if (car.byteLength > MAX_CAR_BYTES) return { status: 'inconclusive', code: 'car_limit' };
   try {
     const root = CID.parse(delivery.cid);
-    const reader = await CarReader.fromBytes(car);
+    // Decode records progressively: a complete-reader index would allocate every
+    // record before our limit, including repeated copies of the same CID.
+    const reader = await CarBlockIterator.fromBytes(car);
     const roots = await reader.getRoots();
     if (roots.length !== 1 || !roots[0].equals(root)) return { status: 'mismatch', code: 'car_root_mismatch' };
     const blocks = new Map<string, Uint8Array>();
-    for await (const { cid, bytes } of reader.blocks()) {
-      if (blocks.size >= 512) throw new EvidenceError('inconclusive', 'block_limit');
+    let records = 0;
+    for await (const { cid, bytes } of reader) {
+      // Bound work, not only distinct stored CIDs. Every repeated record still
+      // consumes budget and must pass hash verification before replacing a block.
+      if (++records > 512) throw new EvidenceError('inconclusive', 'block_limit');
       if (cid.multihash.code !== 0x12 || cid.multihash.size !== 32 || ![0x55, 0x70].includes(cid.code)) {
         throw new EvidenceError('inconclusive', 'unsupported_block');
       }

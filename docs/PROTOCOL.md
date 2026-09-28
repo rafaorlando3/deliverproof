@@ -46,7 +46,9 @@ The verifier validates the CID; the contract only restricts length/alphabet.
 
 ## CAR and trust boundaries
 
-Read at most 4 MiB and 512 distinct blocks. Verify every sha2-256 block before
+Read at most 4 MiB and 512 block records, including repeated CIDs. Decode records
+progressively and count every record before hashing it; the map of unique CIDs
+does not bound repeated-record processing. Verify every sha2-256 block before
 making it available to the UnixFS exporter. Only then reconstruct and compare
 file SHA/size. Missing blocks/unsupported encoding/transport failure are
 inconclusive; explicit mismatches have separate codes. A malicious gateway is

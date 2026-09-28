@@ -111,6 +111,25 @@ describe('content proof',()=>{
       .toEqual({status:'inconclusive',code:'car_limit'});
     expect((await verifyCar(f.car,{...f.delivery,cid:'http://localhost/private'},f.commitment)).status).toBe('mismatch');
   });
+  it('accepts the bounded duplicate-record boundary without changing verified bytes',async()=>{
+    const f=await fixture();
+    const car=await archive(f.cid,Array.from({length:512},()=>({cid:f.cid,bytes:f.bytes})));
+    expect(car.byteLength).toBeLessThan(MAX_CAR_BYTES);
+    const result=await verifyCar(car,f.delivery,f.commitment);
+    expect(result.status).toBe('verified');
+    if(result.status==='verified')expect(result.bytes).toEqual(f.bytes);
+  });
+  it('limits total CAR records even when every record repeats the same valid CID',async()=>{
+    const f=await fixture();
+    const car=await archive(f.cid,Array.from({length:513},()=>({cid:f.cid,bytes:f.bytes})));
+    expect(car.byteLength).toBeLessThan(MAX_CAR_BYTES);
+    expect(await verifyCar(car,f.delivery,f.commitment)).toEqual({status:'inconclusive',code:'block_limit'});
+  });
+  it('checks the bytes of a repeated CID instead of silently skipping duplicates',async()=>{
+    const f=await fixture();const bad=f.bytes.slice();bad[0]^=1;
+    const car=await archive(f.cid,[{cid:f.cid,bytes:f.bytes},{cid:f.cid,bytes:bad}]);
+    expect(await verifyCar(car,f.delivery,f.commitment)).toEqual({status:'mismatch',code:'block_hash_mismatch'});
+  });
   it('network failure and HTTP 404 never prove fraud or successful content',async()=>{
     const f=await fixture();
     for(const fetcher of [async()=>{throw Error('offline');},async()=>new Response('',{status:404})]) {

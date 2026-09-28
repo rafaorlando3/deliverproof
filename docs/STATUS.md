@@ -123,9 +123,26 @@
   original transaction hash and allow another create. Claude is preparing a
   red/green reproduction and separate fix. The 56-check rehearsal did not close it.
 
+## M2e content-work bound — written, pending cloud acceptance
+
+- Static review found that the 512-block cap counted distinct stored CIDs, while
+  repeated CAR records still consumed decode/hash work. The complete reader also
+  indexed all records before that cap was checked. The 4 MiB input cap still held;
+  no browser stall or incident was observed and no timing claim is made.
+- The source now uses the existing dependency's progressive CarBlockIterator and
+  counts all records, including duplicates, before hashing each admitted record.
+  Up to 512 records are allowed; excess is inconclusive/block_limit. Every admitted
+  duplicate still needs a matching hash, and all original DAG/content checks remain.
+- Three regression cases written: 512 repeated records preserve verified bytes;
+  513 repeated records under the byte cap are inconclusive; a later repeated CID
+  with corrupted bytes is a hash mismatch. Not executed on the Mac. Claude must
+  demonstrate the failing old case and passing corrected case in the cloud, then
+  run core/type/build checks and browser CAR preparation/retrieval in the combined
+  checkout. No new dependency, wallet/UI change, network access or upload added.
+
 ## Required next
 
-1. Claude cloud validation of the combined M2c/M2d corrections and UI-01 fix:
+1. Claude cloud validation of the combined M2c/M2d/M2e corrections and UI-01 fix:
    untouched baseline, reviewed deltas, fresh locked installation, core/contract/
    chain and frontend checks, actual crash/timeout/recovery and browser scenarios.
 2. Real format script with reviewed dependencies; repeat normal CLI generation,
