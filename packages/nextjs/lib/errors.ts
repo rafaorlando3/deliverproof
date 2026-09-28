@@ -17,14 +17,20 @@ const reasons: Record<string, string> = {
 
 /** Contract refusal found by the read-only preflight, in words. Nothing was signed or sent. */
 export function explainPreflight(error: unknown): string {
-  const raw = error instanceof BaseError
-    ? error.walk(e => typeof (e as { data?: unknown }).data === 'string' && /^0x[0-9a-f]{8}/i.test((e as { data: string }).data)) as { data?: Hex } | null
-    : null;
+  const raw =
+    error instanceof BaseError
+      ? (error.walk(
+          e =>
+            typeof (e as { data?: unknown }).data === 'string' && /^0x[0-9a-f]{8}/i.test((e as { data: string }).data),
+        ) as { data?: Hex } | null)
+      : null;
   if (raw?.data) {
     try {
       const name = decodeErrorResult({ abi: deliverProofAbi, data: raw.data }).errorName;
       return `${reasons[name] ?? `The contract refused this step (${name}).`} Nothing was sent.`;
-    } catch { /* not one of this contract's errors */ }
+    } catch {
+      /* not one of this contract's errors */
+    }
   }
   return 'The read-only check before signing did not pass, so nothing was sent. Verify the agreement and try again.';
 }

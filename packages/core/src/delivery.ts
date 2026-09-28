@@ -21,25 +21,55 @@ const nonzeroHash = (s: unknown): s is Hex =>
 export function validateDelivery(d: Delivery): void {
   if (d.chainId !== 296 && d.chainId !== 31337) throw new Error('unsupported_chain');
   if (!/^0x[0-9a-fA-F]{40}$/.test(d.contract) || /^0x0{40}$/.test(d.contract)) throw new Error('invalid_contract');
-  if (typeof d.agreementId !== 'bigint' || d.agreementId < 1n || d.agreementId >= 2n ** 256n) throw new Error('invalid_agreement');
+  if (typeof d.agreementId !== 'bigint' || d.agreementId < 1n || d.agreementId >= 2n ** 256n)
+    throw new Error('invalid_agreement');
   if (!nonzeroHash(d.termsHash) || !nonzeroHash(d.fileSha256)) throw new Error('invalid_hash');
-  if (typeof d.fileSize !== 'bigint' || d.fileSize < 1n || d.fileSize > BigInt(MAX_FILE_BYTES)) throw new Error('invalid_size');
+  if (typeof d.fileSize !== 'bigint' || d.fileSize < 1n || d.fileSize > BigInt(MAX_FILE_BYTES))
+    throw new Error('invalid_size');
   if (![1, 2, 3].includes(d.mediaType) || d.version !== 1) throw new Error('invalid_metadata');
   const cid = CID.parse(d.cid);
-  if (cid.version !== 1 || cid.toString() !== d.cid || d.cid.length > 96 ||
-      ![0x55, 0x70].includes(cid.code) || cid.multihash.code !== 0x12 || cid.multihash.size !== 32) {
+  if (
+    cid.version !== 1 ||
+    cid.toString() !== d.cid ||
+    d.cid.length > 96 ||
+    ![0x55, 0x70].includes(cid.code) ||
+    cid.multihash.code !== 0x12 ||
+    cid.multihash.size !== 32
+  ) {
     throw new Error('unsupported_cid');
   }
 }
 
 export function deliveryCommitment(d: Delivery): Hex {
   validateDelivery(d);
-  return keccak256(encodeAbiParameters([
-    { type: 'bytes32' }, { type: 'uint256' }, { type: 'address' }, { type: 'uint256' },
-    { type: 'bytes32' }, { type: 'bytes32' }, { type: 'bytes32' }, { type: 'uint64' },
-    { type: 'uint8' }, { type: 'uint32' }
-  ], [DOMAIN, BigInt(d.chainId), d.contract, d.agreementId, d.termsHash,
-    keccak256(stringToHex(d.cid)), d.fileSha256, d.fileSize, d.mediaType, d.version]));
+  return keccak256(
+    encodeAbiParameters(
+      [
+        { type: 'bytes32' },
+        { type: 'uint256' },
+        { type: 'address' },
+        { type: 'uint256' },
+        { type: 'bytes32' },
+        { type: 'bytes32' },
+        { type: 'bytes32' },
+        { type: 'uint64' },
+        { type: 'uint8' },
+        { type: 'uint32' },
+      ],
+      [
+        DOMAIN,
+        BigInt(d.chainId),
+        d.contract,
+        d.agreementId,
+        d.termsHash,
+        keccak256(stringToHex(d.cid)),
+        d.fileSha256,
+        d.fileSize,
+        d.mediaType,
+        d.version,
+      ],
+    ),
+  );
 }
 
 /** JSON-RPC tx.value is 18 decimals on Hedera; Solidity msg.value is tinybars (8).
