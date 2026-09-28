@@ -13,7 +13,9 @@
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:chain": "vitest run --config vitest.chain.config.ts",
+    "typecheck:chain": "tsc --noEmit -p tsconfig.chain.json"
   },
   "dependencies": {
     "@ipld/car": "5.4.7",

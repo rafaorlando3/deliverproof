@@ -25,6 +25,7 @@
     "next:build": "npm run build -w @sh/nextjs",
     "next:check": "npm run check-types -w @sh/nextjs",
     "next:lint": "npm run lint -w @sh/nextjs",
-    "next:start": "npm run start -w @sh/nextjs"
+    "next:start": "npm run start -w @sh/nextjs",
+    "chain:test": "npm run hardhat:compile && npm run typecheck:chain -w @deliverproof/core && npm run test:chain -w @deliverproof/core"
   }
 }
