@@ -61,7 +61,7 @@ A testnet-only escrow for one digital delivery. One buyer, one supplier, one fil
 ## Validation appropriate to the change
 
 Use Node 22.22.2 with npm@10.9.7 as the recorded default. Consult INSTALL/STATUS
-for the candidate results on 20.18.3 and 24.21.0 and the Node 20 dependency-engine
+for the accepted results on 20.18.3 and 24.21.0 and the Node 20 dependency-engine
 warnings. Keep the reviewed lockfile; do not change it just to silence failures.
 ESLint 9.39.5 is a temporary unsupported development pin. Preserve effective
 React rules and validate any replacement separately.

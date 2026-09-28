@@ -17,9 +17,9 @@ Anyone can check an agreement without a wallet. The verifier replays the contrac
 Requirements:
 
 - Recommended recorded runtime: Node.js **22.22.2 with npm@10.9.7**.
-- The Node 20 correction candidate has cloud results on 20.18.3/npm@10.8.2,
-  22.22.2/npm@10.9.7 and 24.21.0/npm@11.19.0. Its source-to-result acceptance
-  is tracked in [STATUS](docs/STATUS.md). Node 20.18.3 reports dependency
+- The accepted Node 20 correction has cloud results on 20.18.3/npm@10.8.2,
+  22.22.2/npm@10.9.7 and 24.21.0/npm@11.19.0. Its source-to-result correspondence
+  is recorded in [STATUS](docs/STATUS.md). Node 20.18.3 reports dependency
   `EBADENGINE` warnings: Vite and eslint-visitor-keys require at least 20.19.0
   on that major line. Passing commands do not establish engine-strict support.
 - Declared major ranges are 20.18.3–20.x, 22.18.0–22.x and 24.0.0–24.x;
@@ -160,12 +160,13 @@ conversion. The real testnet evidence remains pending.
 
 | Suite | Command | Checks |
 | --- | --- | --- |
-| Core (vitest) | `npm run core:test` | 53 reported on 15c65ba: commitments, CAR limits and tampering, verifier codes, property test of the log windows |
-| Contract (Hardhat) | `npm run hardhat:test` | 38 reported on 15c65ba: deadlines, exact deposit, credits and withdrawal, reentrancy, liability invariant, deploy journal and recovery |
-| Chain (vitest + local node) | `npm run chain:test` | 43 reported on 15c65ba: Solidity/TypeScript commitment vectors, reorgs, missing logs, wrong contract, unit scaling, read failures |
+| Core (vitest) | `npm run core:test` | 53 passed on 15c65ba: commitments, CAR limits and tampering, verifier codes, property test of the log windows |
+| Contract (Hardhat) | `npm run hardhat:test` | 38 passed on 15c65ba: deadlines, exact deposit, credits and withdrawal, reentrancy, liability invariant, deploy journal and recovery |
+| Chain (vitest + local node) | `npm run chain:test` | 43 passed on 15c65ba: Solidity/TypeScript commitment vectors, reorgs, missing logs, wrong contract, unit scaling, read failures |
 
-The table refers to the cloud Node-compatibility candidate, not a fresh run of
-every checkout. See [STATUS](docs/STATUS.md) for exact source correspondence and
+The table refers to the accepted cloud Node-compatibility results on 15c65ba,
+not a fresh run of every documentary commit. Executable source, configuration
+and lockfile match that tested source. See [STATUS](docs/STATUS.md) for exact source correspondence and
 acceptance. `npm run next:lint`, `npm run next:check` before and after
 `npm run next:build`, and `npm run format:check` complete the checks. One known
 lint warning remains. Formatting excludes Markdown and evidence artifacts, so a

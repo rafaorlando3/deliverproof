@@ -1,36 +1,52 @@
 # Status — 2026-09-28
 
-## Current candidate — C-0050 / Node 20 and evaluator guide
+## Current acceptance — C-0050/C-0051
 
-This review branch contains b55b656 plus documentation edits. Main remains
-9ef66f8, accepted below. The Node 20 delta is statically reviewed; executable
-acceptance awaits the exact tested source ref 15c65ba requested in X-0049. Do not
-call this branch integrated or its source-to-result correspondence verified yet.
+The Node 20 compatibility delta b55b656 and the adapted evaluator guide are
+accepted for integration. C-0051 supplied the missing tested source ref
+15c65ba336b04e114241628bfa0c3fdcd59b517e; Codex checked all three supplement
+hashes, bundle integrity and the full Git tree comparison. b55b656 and that
+source differ **only in docs/STATUS.md**. Guide commits affect only README.md,
+AGENTS.md, docs/INSTALL.md and this status file. Executable source, configuration
+and lockfile therefore match the tested source exactly. Documentation-only
+commits are not described as newly executed full-suite results.
 
-C-0050 supplies a valid bundle and four checked artifact hashes. Its cloud logs
-show the original 6cb74c7 failing the Hardhat before-hook on Node 20.18.3 because
-of a direct TypeScript import. The candidate moves the same six commitment
-vectors to Vitest chain tests and checks Submitted fields, with no production
-contract, verifier or UI changes and no changed dependency versions. Only root
-engine metadata changes in the lockfile.
+C-0050's original four artifact hashes and the guide's three hashes were checked.
+Its cloud logs show 6cb74c7 failing the Hardhat before-hook on Node 20.18.3 due
+to direct TypeScript import. The correction moves the same six commitment
+vectors into Vitest chain tests and checks Submitted fields, with no production
+contract, verifier or UI changes and no changed dependency versions. The lock
+changes only root engine metadata.
 
-Reported CLI 0.4.0 local-template generation plus independent checks on 15c65ba:
-Node 20.18.3/npm@10.8.2, 22.22.2/npm@10.9.7 and 24.21.0/npm@11.19.0 all exit 0;
-core 53, contract 38, chain 43; lint has one warning; generated tree is clean;
-formatting has no warning. These are reviewed supplied logs, not Mac executions.
-There are two Node 20 unsupported-engine entries spanning 10 EBADENGINE log
-lines, not ten distinct dependency problems. They concern Vite and
-eslint-visitor-keys requiring at least 20.19.0 on that major line. Engine-strict
-support on 20.18.3 is not established. The preferred recorded runtime is 22.22.2.
-The mutation described by Claude has no supplied log in the original archive;
-its execution is reported, not independently evidenced here.
+Accepted supplied results for CLI 0.4.0 local-template generation and independent
+checks on 15c65ba: Node 20.18.3/npm@10.8.2, 22.22.2/npm@10.9.7 and
+24.21.0/npm@11.19.0 all exit 0; core 53, contract 38, chain 43; lint has one
+warning; generated trees are clean; formatting has no warning. These are
+reviewed cloud logs, not Mac executions. Two Node 20 unsupported-engine entries
+span 10 EBADENGINE log lines, not ten distinct dependency problems. Vite and
+eslint-visitor-keys require at least 20.19.0 on that major line. Engine-strict
+20.18.3 support is not established; preferred recorded runtime is 22.22.2.
+Installation deprecation notices remain. The supplied Node 20 binary was not
+hash-checked before its archive was removed, as disclosed in the source report.
 
-The proposed guide's three hashes were checked. README and AGENTS have been
-adapted with a product introduction, architecture, commands, explicit pending
-public-evidence table and transaction/byte-verification limits. INSTALL removes
-superseded M2b/formatter claims. Direct Mac execution restrictions are retained.
-Static documentation review does not establish generated CLI documentation or a
-working public download. No new accounts, deployments, transactions or pinning.
+The supplement contains the previously missing mutation command/log: changing
+CID hashing to hash the uppercased CID causes the cross-language assertion to
+fail (one failing test). Source restoration is reported; the received final
+Git source is unmutated. This is reviewed supplied mutation evidence, not a new
+Codex execution or proof that all possible commitment defects are detected.
+
+The guide now has a product introduction, architecture, setup, environment table,
+explicit pending public evidence, byte-verification limits and transaction rules.
+INSTALL removes superseded M2b/formatter claims. Direct Mac execution restrictions
+remain. Static checks found all 14 relative links and four anchors, declared root
+script names and balanced fences, with a clean git diff whitespace check.
+Markdown is excluded from the formatter. The revised guide still needs a short
+review after the official CLI's Markdown transformation; that documentary check
+does not require repeating unchanged behavioral suites.
+
+Hedera deployment, public IPFS retrieval and public external-template installation
+remain pending. No account, faucet, public transaction, pinning, repository
+publication or competition submission was performed in this review.
 
 ## Last integrated acceptance — C-0049
 
@@ -262,9 +278,9 @@ pending. No competition submission or public deployment has been made.
 
 ## Required next
 
-1. Close the exact-source correspondence for b55b656 versus tested 15c65ba;
-   then integrate the reviewed Node compatibility delta and adapted evaluator
-   guide. Preserve pending public evidence and review CLI-generated instructions.
+1. Review the adapted guide after CLI Markdown transformation, returning only
+   any necessary documentary correction. Source correspondence for b55b656
+   versus tested 15c65ba is closed; preserve pending public evidence.
 2. Actual Hedera testnet and public IPFS path after applicable direct account,
    faucet, pinning and deployment authorization. Verify our deployment receipt,
    deposit/credit/withdraw/refund, tinybar/weibar conversion and custom errors.
@@ -273,6 +289,7 @@ pending. No competition submission or public deployment has been made.
 4. Competition eligibility, fresh competitor check, video and submission authorization.
 
 No public repo, deployment, paid service, production money or competition submission.
-Accepted integrated cloud evidence applies to 6cb74c7 and main 9ef66f8's identical
-executable source. This review branch adds the C-0050 candidate described above;
-real Hedera/IPFS and competition readiness remain unverified.
+Current executable source, configuration and lockfile match tested 15c65ba.
+The Node 20 correction changes test location and runtime metadata only; the
+previously accepted UI-01/02/03 and lifecycle evidence remains at its recorded
+boundary. Real Hedera/IPFS and competition readiness remain unverified.

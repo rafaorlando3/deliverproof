@@ -9,8 +9,8 @@ EVM; those fixture deployments are not a public Hedera deployment.
 ## Reproducible installation gate
 
 The recommended recorded runtime is **Node 22.22.2 with npm@10.9.7**.
-Keep the reviewed lockfile. The source candidate b55b656 removes a test-only direct
-TypeScript import that failed on Node 20.18.3. Its cloud report uses candidate
+Keep the reviewed lockfile. The accepted correction b55b656 removes a test-only direct
+TypeScript import that failed on Node 20.18.3. Its cloud report uses tested source
 15c65ba and CLI 0.4.0 generated projects, with all commands passing on:
 
 | Node | Actual package manager | Dependency-engine warnings |
@@ -26,8 +26,8 @@ and one frontend lint warning remain; “exit 0” does not mean warning-free.
 The manifest declares `>=20.18.3 <21 || >=22.18.0 <23 || >=24.0.0 <25`.
 Do not claim all later versions or npm releases were validated.
 
-See [STATUS](STATUS.md) for the exact source correspondence and acceptance of this
-candidate. Record the SHA, actual runtime and installation mode for a release
+Source b55b656 differs from tested 15c65ba only in STATUS.md; later guide edits
+also affect documentation only. See [STATUS](STATUS.md) for acceptance boundaries. Record the SHA, actual runtime and installation mode for a release
 candidate. Do not regenerate the lock merely to hide an installation failure.
 The reported Node-compatibility battery used ordinary `npm ci --no-audit --no-fund`;
 its results must not be described as an `--ignore-scripts` run.
