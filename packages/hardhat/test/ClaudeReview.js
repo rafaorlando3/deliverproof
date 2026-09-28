@@ -8,6 +8,8 @@ const { expect } = require('chai');
 const { ethers, network } = require('hardhat');
 
 let core, CID, sha256
+// Escopo: o before abaixo roda só para os testes deste arquivo, não para a suíte inteira do Hardhat.
+describe('Claude (revisão M1)', function () {
 before(async function () {
   try { core = await import('../../core/src/delivery.ts') }
   catch (e) { throw new Error(`precisa de Node >= 22.18 (type stripping) para importar o fonte TS do core: ${e.message}`) }
@@ -131,4 +133,5 @@ describe('Claude (revisão M1): invariante de passivos sob sequência pseudoalea
     expect(okCalls).to.be.greaterThan(10)
     expect(reverted).to.be.greaterThan(10)
   })
+})
 })
