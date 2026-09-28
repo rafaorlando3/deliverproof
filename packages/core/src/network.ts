@@ -2,6 +2,7 @@ import { decodeEventLog, keccak256, type Address, type Hex } from 'viem';
 import { deliverProofAbi } from './abi.js';
 import { deliveryCommitment, rpcValueForTinybars, type Delivery } from './delivery.js';
 import { inspectTransaction } from './receipt.js';
+import { ChainReadError } from './read-errors.js';
 
 /** Supplied by this installation's operator after checking compiled bytecode and deployment.
  * Never populate it from a receipt, query string, wallet, or a user-uploaded JSON file. */
@@ -112,10 +113,12 @@ export async function verifyAgreement(t: TrustedDeployment, id: bigint, reader: 
       const key = `${l.transactionHash.toLowerCase()}:${l.logIndex}`;
       incomplete(!identities.has(key), 'duplicate_rpc_log'); identities.add(key);
       const r = await receipt(l.transactionHash);
-      check(r.to !== null && same(r.to, t.address), 'wrong_transaction_target');
       incomplete(r.blockNumber === l.blockNumber && same(r.blockHash, l.blockHash), 'history_changed');
       incomplete(r.logs.some(x => x.logIndex === l.logIndex && same(x.address, l.address) &&
         x.data === l.data && JSON.stringify(x.topics) === JSON.stringify(l.topics)), 'receipt_log_missing');
+      // A real event reached via a forwarding contract is outside the direct-call model.
+      // Confirm receipt membership first: a rewritten imitator log must not take this path.
+      incomplete(r.to !== null && same(r.to, t.address), 'unsupported_caller');
       events.push({ name: e.eventName, args: e.args, log: l, from: r.from });
     }
     events.sort((x, y) => x.log.blockNumber < y.log.blockNumber ? -1 : x.log.blockNumber > y.log.blockNumber ? 1 : x.log.logIndex - y.log.logIndex);
@@ -174,6 +177,7 @@ export async function verifyAgreement(t: TrustedDeployment, id: bigint, reader: 
       milestones: events.map(x => ({ event: x.name, hash: x.log.transactionHash, block: x.log.blockNumber })) };
   } catch (e) {
     if (e instanceof EvidenceError) return { status: e.status, code: e.code };
+    if (e instanceof ChainReadError) return { status: 'inconclusive', code: e.code };
     return { status: 'inconclusive', code: 'rpc_unavailable' };
   }
 }

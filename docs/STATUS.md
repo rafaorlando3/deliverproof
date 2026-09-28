@@ -32,7 +32,16 @@
 5. Cloud reviewer/CI must record core and contract runs independently. npm test
    keeps fail-fast behavior; its short-circuit is explicit, not a full-suite result.
 
-## M2 source increment (cloud validation pending)
+## M2a independent review received (not testnet)
+
+- Claude supplied 15 hashed artifacts for 7f4c383 + review 84f1fec: clean npm ci,
+  core 30/30, contract 22/22, chain/ABI 34/34 on an ephemeral cloud Hardhat node.
+  Ten check-removal mutations were caught. Codex checked hashes/delta/log totals.
+- Integrated that test-only review as de5e39f over M2b, resolving the root scripts
+  conflict by keeping both the frontend scripts and chain:test. No local execution.
+- This is evidence for M2a, not for the subsequent frontend or M2c changes.
+
+## M2 source increment (frontend cloud validation pending)
 
 - M2a commit 7f4c383: independent deployment/code/receipt/event/state verifier and
   13 written tests. Package delivered to Claude through X-0030. No execution here.
@@ -50,9 +59,28 @@
 - The deploy utility writes a public candidate only after receipt/runtime checks;
   installing it is a separate operator review. It has not been executed here.
 
+## M2c correction increment — written, pending cloud acceptance
+
+- Read event history in consecutive inclusive windows limited by real block
+  timestamps (six-day maximum). No estimated block cadence. Caps: 64 log requests,
+  256 timestamp reads, 256 aggregate events and 60 seconds between operations.
+  In-flight requests retain the transport's 15s cap. An incomplete read is discarded
+  as inconclusive, never accepted as proof of missing events or successful payment.
+- Added the 14 contract errors and typed UnknownAgreement recognition. A transport
+  failure whose text mentions the error is still a transport failure.
+- Real forwarding-contract events are inconclusive/unsupported_caller only after
+  successful canonical receipt membership checks. Direct EOA callers remain the
+  supported model; no general smart-wallet support is claimed.
+- Test helper drains Hardhat output without logging development private keys,
+  bounds its readiness buffer, and terminates the child on startup failure/timeout.
+- Sixteen unit regressions written plus an eight-day real EVM time-gap regression
+  and updated ABI/negative chain expectations. None executed on the Mac.
+- Browser preflight currently uses client.call; cloud UI acceptance must also check
+  named revert presentation. ABI parity alone does not prove friendly UI errors.
+
 ## Required next
 
-1. Claude cloud validation of M2a/M2b, independent lifecycle/ABI tests, reviewed
+1. Claude cloud validation of M2b/M2c, updated lifecycle/ABI tests, reviewed
    lockfile and fresh npm ci, frontend lint/types/build and desktop/mobile rehearsal.
 2. Official CLI local-template transformation plus clean generated build in cloud.
 3. Actual Hedera testnet and public IPFS path after specific account/faucet/pinning
@@ -62,4 +90,4 @@
 5. Competition eligibility, fresh competitor check, video and submission authorization.
 
 No public repo, deployment, paid service, production money or competition submission.
-Cloud logs and independent review support M1 progress, not M2 or competition readiness.
+Cloud logs support M1 and the reviewed M2a boundary, not frontend/M2c or competition readiness.

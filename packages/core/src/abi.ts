@@ -2,6 +2,20 @@ import { parseAbi } from 'viem';
 
 /** Same public interface as the original DeliverProof.sol. Cloud acceptance compares ABIs. */
 export const deliverProofAbi = parseAbi([
+  'error UnsupportedChain()',
+  'error InvalidTerms()',
+  'error UnknownAgreement()',
+  'error Unauthorized()',
+  'error WrongState()',
+  'error DeadlinePassed()',
+  'error RefundNotAvailable()',
+  'error WrongAmount()',
+  'error InvalidDelivery()',
+  'error WrongCommitment()',
+  'error AlreadyWithdrawn()',
+  'error TransferFailed()',
+  'error ReentrantCall()',
+  'error DirectPaymentRejected()',
   'function createAgreement(address supplier, uint64 amountTinybar, uint64 deliveryDeadline, uint64 reviewDeadline, bytes32 termsHash) returns (uint256 id)',
   'function fund(uint256 id) payable',
   'function submit(uint256 id, string cid, bytes32 fileSha256, uint64 fileSize, uint8 mediaType)',

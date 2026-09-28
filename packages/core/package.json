@@ -9,6 +9,8 @@
     "./content": "./src/content.ts",
     "./delivery": "./src/delivery.ts",
     "./network": "./src/network.ts",
+    "./log-windows": "./src/log-windows.ts",
+    "./read-errors": "./src/read-errors.ts",
     "./receipt": "./src/receipt.ts"
   },
   "scripts": {

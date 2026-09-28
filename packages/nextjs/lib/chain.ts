@@ -2,6 +2,8 @@ import { createPublicClient, defineChain, http, decodeEventLog, toHex, keccak256
 import { deliverProofAbi } from '@deliverproof/core/abi';
 import { validateDeployment, type TrustedDeployment, type ChainReader, type ChainLog, type ChainReceipt, type Agreement } from '@deliverproof/core/network';
 import { inspectTransaction } from '@deliverproof/core/receipt';
+import { logsInTimeWindows } from '@deliverproof/core/log-windows';
+import { throwAgreementReadError } from '@deliverproof/core/read-errors';
 import configured from './deployment.json';
 
 type Manifest = Omit<TrustedDeployment,'deploymentBlock'> & {deploymentBlock:string};
@@ -24,14 +26,21 @@ export function clients(t:TrustedDeployment) {
       catch(e) { if(e instanceof Error && e.name==='TransactionReceiptNotFoundError') return null; throw e; }
     },
     transaction:async hash=>{const tx=await client.getTransaction({hash});return {hash:tx.hash,from:tx.from,to:tx.to,value:tx.value};},
-    agreement:async(address,id,blockNumber)=>await client.readContract({address,abi:deliverProofAbi,functionName:'getAgreement',args:[id],blockNumber}) as Agreement,
+    agreement:async(address,id,blockNumber)=>{
+      try { return await client.readContract({address,abi:deliverProofAbi,functionName:'getAgreement',args:[id],blockNumber}) as Agreement; }
+      catch(e) { throwAgreementReadError(e); }
+    },
     logs:async(address,id,from,to)=>{
       // Indexed agreement id is topic 1 for every DeliverProof event; never accept a receipt-provided filter.
-      const rows=await client.request({method:'eth_getLogs',params:[{address,fromBlock:toHex(from),toBlock:toHex(to),topics:[null,toHex(id,{size:32})]}]});
-      if(rows.length>256)throw new Error('event limit');
-      return rows.map(l=>{
-        if(l.blockNumber===null||l.blockHash===null||l.transactionHash===null||l.logIndex===null)throw new Error('incomplete log');
-        return {...l,blockNumber:BigInt(l.blockNumber),logIndex:Number(BigInt(l.logIndex))} as ChainLog;
+      return logsInTimeWindows(from,to,{
+        block:n=>reader.block(n),
+        logs:async(start,end)=>{
+          const rows=await client.request({method:'eth_getLogs',params:[{address,fromBlock:toHex(start),toBlock:toHex(end),topics:[null,toHex(id,{size:32})]}]});
+          return rows.map(l=>{
+            if(l.blockNumber===null||l.blockHash===null||l.transactionHash===null||l.logIndex===null)throw new Error('incomplete log');
+            return {...l,blockNumber:BigInt(l.blockNumber),logIndex:Number(BigInt(l.logIndex))} as ChainLog;
+          });
+        },
       });
     },
   };

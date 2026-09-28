@@ -21,16 +21,14 @@ describe('ABI de src/abi.ts x artifact do DeliverProof.sol', () => {
       const c = compiled.find(x => key(x) === key(d));
       expect(c, key(d)).toBeDefined();
       expect(shape(d), key(d)).toEqual(shape(c!));
-      if (d.type === 'function') expect(toFunctionSelector(d as never)).toBe(toFunctionSelector(c as never));
+      if (d.type === 'function' || d.type === 'error') expect(toFunctionSelector(d as never)).toBe(toFunctionSelector(c as never));
       if (d.type === 'event') expect(toEventSelector(d as never)).toBe(toEventSelector(c as never));
     }
   });
   it('o artifact tem só estes itens a mais (nenhuma função de escrita ou evento faltando)', () => {
     const extra = compiled.filter(c => !declared.some(d => key(d) === key(c))).map(key).sort();
     expect(extra).toEqual([
-      'constructor:', 'error:AlreadyWithdrawn', 'error:DeadlinePassed', 'error:DirectPaymentRejected', 'error:InvalidDelivery',
-      'error:InvalidTerms', 'error:ReentrantCall', 'error:RefundNotAvailable', 'error:TransferFailed', 'error:Unauthorized',
-      'error:UnknownAgreement', 'error:UnsupportedChain', 'error:WrongAmount', 'error:WrongCommitment', 'error:WrongState',
+      'constructor:',
       'fallback:', 'function:DOMAIN', 'function:MAX_AMOUNT_TINYBAR', 'function:MAX_FILE_BYTES', 'function:nextId',
       'function:totalCredits', 'function:totalLocked', 'receive:',
     ]);

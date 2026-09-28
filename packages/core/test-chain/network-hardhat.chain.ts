@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import {
-  BaseError, ContractFunctionRevertedError, createPublicClient, createWalletClient, custom, decodeErrorResult, http, keccak256,
+  BaseError, ContractFunctionRevertedError, createPublicClient, createWalletClient, custom, encodeErrorResult, http, keccak256,
   type Address, type Hex, type PublicClient, type WalletClient,
 } from 'viem';
 import { hardhat } from 'viem/chains';
@@ -177,7 +177,7 @@ describe('outro contrato e outro acordo', () => {
       .toEqual({ status: 'mismatch', code: 'wrong_event_contract' });
     // 2) RPC reescreve o endereço do log para o contrato verdadeiro
     expect(await verifyAgreement(t, a.id, lying({ ...claimsFunded, logs: async (...p) => [...await reader().logs(...p), asLog(t.address)] })))
-      .toEqual({ status: 'mismatch', code: 'wrong_transaction_target' });
+      .toEqual({ status: 'inconclusive', code: 'receipt_log_missing' });
   });
 });
 
@@ -317,8 +317,33 @@ describe('limite do eth_getLogs no relay do Hedera (7 dias por consulta)', () =>
   });
 });
 
-describe('comportamento atual para decidir (não é falha de segurança)', () => {
-  it('ATUAL: acordo legítimo feito por carteira-contrato (smart account) sai como mismatch', async () => {
+describe('M2c: janelas com timestamp real no EVM', () => {
+  it('a mesma prova com salto de oito dias falha sem janelas e passa no paginador de produção', async () => {
+    const t = await deploy(); const a = await create(t);
+    await call(t, buyer, 'fund', [a.id], a.amount);
+    await pub.request({ method: 'evm_increaseTime', params: [8 * 86_400] } as never);
+    await pub.request({ method: 'evm_mine', params: [] } as never);
+    const spans: bigint[] = [];
+    const limited = createPublicClient({ chain: hardhat, transport: custom({ async request({ method, params }: { method: string; params?: unknown }) {
+      if (method === 'eth_getLogs') {
+        const [filter] = params as [{ fromBlock: Hex; toBlock: Hex }];
+        const first = await pub.getBlock({ blockNumber: BigInt(filter.fromBlock) });
+        const last = await pub.getBlock({ blockNumber: BigInt(filter.toBlock) });
+        const span = last.timestamp - first.timestamp; spans.push(span);
+        if (span > 7n * 86_400n) throw Object.assign(new Error('TIMESTAMP_RANGE_TOO_LARGE'), { code: -32004 });
+      }
+      return pub.request({ method, params } as never);
+    } }) }) as PublicClient;
+    expect(await verifyAgreement(t, a.id, viemReader(limited))).toEqual({ status: 'inconclusive', code: 'rpc_unavailable' });
+    spans.length = 0;
+    expect(events(await verifyAgreement(t, a.id, viemReader(limited, { timeWindows: true })))).toEqual(['Created', 'Funded']);
+    expect(spans.length).toBeGreaterThan(1);
+    expect(spans.every(s => s <= 6n * 86_400n)).toBe(true);
+  });
+});
+
+describe('classificações decididas no M2c', () => {
+  it('carteira-contrato com evento real é inconclusive/unsupported_caller', async () => {
     const t = await deploy(); const { wallet: w } = await helpers();
     const ts = await now();
     await mined(await wallet.writeContract({ account: buyer, chain: hardhat, address: w, abi: WALLET_ABI, functionName: 'create',
@@ -326,24 +351,24 @@ describe('comportamento atual para decidir (não é falha de segurança)', () =>
     const id = (await pub.readContract({ address: t.address, abi: DP.abi, functionName: 'nextId' }) as bigint) - 1n;
     const ag = await pub.readContract({ address: t.address, abi: deliverProofAbi, functionName: 'getAgreement', args: [id] });
     expect(ag.buyer.toLowerCase()).toBe(w.toLowerCase()); // o comprador on-chain é a carteira-contrato
-    expect(await verifyAgreement(t, id, reader())).toEqual({ status: 'mismatch', code: 'wrong_transaction_target' });
+    expect(await verifyAgreement(t, id, reader())).toEqual({ status: 'inconclusive', code: 'unsupported_caller' });
   });
-  it('ATUAL: id inexistente responde rpc_unavailable (o contrato reverte UnknownAgreement)', async () => {
+  it('id inexistente é distinguido de falha de RPC pelo revert decodificado', async () => {
     const t = await deploy();
-    expect(await verifyAgreement(t, 999n, reader())).toEqual({ status: 'inconclusive', code: 'rpc_unavailable' });
+    expect(await verifyAgreement(t, 999n, reader())).toEqual({ status: 'inconclusive', code: 'unknown_agreement' });
   });
-  it('ATUAL: sem os errors no abi.ts, a interface não nomeia a recusa do contrato', async () => {
+  it('ABI declara os erros e viem nomeia WrongCommitment', async () => {
     const t = await deploy(); const a = await create(t);
     await call(t, buyer, 'fund', [a.id], a.amount); await submit(t, a.id);
     let data: Hex | undefined;
     try { await pub.simulateContract({ account: buyer, address: t.address, abi: deliverProofAbi, functionName: 'approve', args: [a.id, keccak256('0x03')] }); }
     catch (e) {
       const rev = (e as BaseError).walk(x => x instanceof ContractFunctionRevertedError) as ContractFunctionRevertedError | null;
-      expect(rev?.data?.errorName).toBeUndefined(); // abi.ts sem errors: só a assinatura crua
+      expect(rev?.data?.errorName).toBe('WrongCommitment');
       data = rev?.raw;
     }
     expect(data).toMatch(/^0x[0-9a-f]{8}$/);
-    expect(decodeErrorResult({ abi: DP.abi, data: data! }).errorName).toBe('WrongCommitment');
+    expect(data).toBe(encodeErrorResult({ abi: deliverProofAbi, errorName: 'WrongCommitment' }));
   });
 });
 

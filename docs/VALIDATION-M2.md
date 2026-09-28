@@ -64,3 +64,30 @@ Include sanitized exit statuses, exact source SHA, Node/npm versions and hashes.
 Real chain 296, real public IPFS retrieval, funded testnet behavior, public scaffold
 install, video and competition submission remain separate gates. Do not turn the
 cloud-local rehearsal or a screenshot into evidence of those results.
+
+
+## M2c reader delta
+
+Keep the M2a evidence immutable. First run this new delta intact in the cloud, then
+return fixes independently from M2b build/lock/layout work. Run core, contract, chain
+and frontend checks separately and identify both the combined commit and baseline.
+
+- Exercise the production timestamp paginator with an eight-day EVM time jump and
+  a transport that rejects >7-day requests. Original single query must fail; the
+  complete paginated history must verify. This models the relay limit, not Hedera.
+- Independently check irregular cadence, boundary events, empty first windows,
+  later-query failure, global event limit, read/query/time caps and malformed block
+  timestamps. Neither partial results nor an exception may report verified.
+- Keep the original forged-event mutations. The rewritten imitator now fails at
+  receipt_log_missing, before unsupported_caller. Genuine forwarding events remain
+  inconclusive; don't broaden the supported account model merely to obtain green.
+- Verify decoded UnknownAgreement against actual contract revert, preserve generic
+  RPC failures, and compare all 14 declared errors to the compiled artifact.
+- Test startup failure/timeout cleanup of the node helper in the cloud only. Don't
+  attach Hardhat stdout/stderr (it prints development private keys) to reports.
+- Browser named-error presentation remains an end-to-end check: it currently uses
+  client.call. If raw revert errors do not explain refusal, propose a small separate
+  UI delta using the declared ABI; do not claim that ABI parity alone fixes UX.
+- Real testnet gates still include matching EVM/long-zero address representations,
+  logIndex/transactionIndex ordering within one block, and tinybar/weibar value
+  conversions. No faucet, pinning, testnet transaction or public deployment here.

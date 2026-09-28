@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { encodeAbiParameters, encodeEventTopics, getAbiItem, keccak256, type Hex, type Address } from 'viem';
 import { deliverProofAbi } from '../src/abi.js';
+import { ChainReadError } from '../src/read-errors.js';
 import { verifyAgreement, type TrustedDeployment, type ChainReader, type ChainLog, type ChainReceipt, type Agreement } from '../src/network.js';
 
 const h = (n: number) => ('0x' + n.toString(16).padStart(64, '0')) as Hex;
@@ -95,4 +96,15 @@ describe('network proof with independent expected deployment', () => {
     f.reader.chainId=async()=>{throw new Error('timeout')};
     expect(await verifyAgreement(f.t,1n,f.reader)).toEqual({status:'inconclusive',code:'rpc_unavailable'});
   });
+  it('incomplete history budget remains inconclusive, not a partial success', async () => {
+    const f = fixture(); f.reader.logs = async () => { throw new ChainReadError('history_query_budget'); };
+    expect(await verifyAgreement(f.t, 1n, f.reader)).toEqual({ status: 'inconclusive', code: 'history_query_budget' });
+  });
+  it('a real receipt reached by a forwarding target is outside the supported model', async () => {
+    const f = fixture(); f.receipts.get(h(2))!.to = address(99);
+    expect(await verifyAgreement(f.t, 1n, f.reader)).toEqual({ status: 'inconclusive', code: 'unsupported_caller' });
+    f.receipts.get(h(2))!.logs = [];
+    expect(await verifyAgreement(f.t, 1n, f.reader)).toEqual({ status: 'inconclusive', code: 'receipt_log_missing' });
+  });
+
 });
