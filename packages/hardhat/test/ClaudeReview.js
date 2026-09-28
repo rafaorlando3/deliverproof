@@ -1,21 +1,16 @@
 // Provas adicionais da revisão do Claude (M1). Independentes dos testes do Codex:
-// 1) vetor cruzado: o compromisso gravado pelo contrato (Solidity, abi.encode) é byte a byte igual ao
-//    calculado por packages/core/src/delivery.ts (viem), importado direto do fonte TypeScript;
+// 1) vetor cruzado Solidity x TypeScript: movido para packages/core/test-chain/commitment-cross.chain.ts
+//    (npm run chain:test), para esta suíte não depender de Node >= 22.18 (type stripping);
 // 2) invariante de passivos sob uma sequência pseudoaleatória (semente fixa) de chamadas legítimas e
 //    indevidas, com saltos de tempo;
 // 3) compromisso de outro acordo nunca aprova este.
 const { expect } = require('chai');
 const { ethers, network } = require('hardhat');
 
-let core, CID, sha256;
+let CID, sha256;
 // Escopo: o before abaixo roda só para os testes deste arquivo, não para a suíte inteira do Hardhat.
 describe('Claude (revisão M1)', function () {
   before(async function () {
-    try {
-      core = await import('../../core/src/delivery.ts');
-    } catch (e) {
-      throw new Error(`precisa de Node >= 22.18 (type stripping) para importar o fonte TS do core: ${e.message}`);
-    }
     ({ CID } = await import('multiformats/cid'));
     ({ sha256 } = await import('multiformats/hashes/sha2'));
   });
@@ -31,44 +26,7 @@ describe('Claude (revisão M1)', function () {
     };
   }
 
-  describe('Claude (revisão M1): compromisso Solidity x TypeScript', function () {
-    it('mesmos bytes nos dois lados, para vários tamanhos, tipos, codecs e acordos', async function () {
-      const [buyer, supplier] = await ethers.getSigners();
-      const dp = await (await ethers.getContractFactory('DeliverProof')).deploy();
-      const addr = await dp.getAddress();
-      const cases = [
-        { text: 'a', media: 1 },
-        { text: 'Relatório sintético\n', media: 2 },
-        { text: 'x'.repeat(5000), media: 3 },
-      ];
-      let id = 0;
-      for (const c of cases)
-        for (const codec of ['raw', 'pb']) {
-          const f = await file(c.text);
-          const cid = codec === 'raw' ? f.rawCid : f.pbCid;
-          const now = (await ethers.provider.getBlock('latest')).timestamp;
-          const terms = ethers.id(`termos ${id}`);
-          await dp.createAgreement(supplier.address, 1_000n + BigInt(id), now + 100, now + 200, terms);
-          id++;
-          await dp.fund(id, { value: 1_000n + BigInt(id - 1) });
-          const tx = await dp.connect(supplier).submit(id, cid, f.sha, f.bytes.length, c.media);
-          const onchain = (await dp.getAgreement(id)).commitment;
-          const ts = core.deliveryCommitment({
-            chainId: 31337,
-            contract: addr,
-            agreementId: BigInt(id),
-            termsHash: terms,
-            cid,
-            fileSha256: f.sha,
-            fileSize: BigInt(f.bytes.length),
-            mediaType: c.media,
-            version: 1,
-          });
-          expect(ts).to.equal(onchain);
-          await expect(tx).to.emit(dp, 'Submitted').withArgs(id, onchain, cid, f.sha, f.bytes.length, c.media, 1);
-        }
-    });
-
+  describe('Claude (revisão M1): compromisso por acordo', function () {
     it('compromisso de outro acordo, com o mesmo arquivo, não aprova este', async function () {
       const [buyer, supplier] = await ethers.getSigners();
       const dp = await (await ethers.getContractFactory('DeliverProof')).deploy();
