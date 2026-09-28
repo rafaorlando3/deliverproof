@@ -14,3 +14,5 @@
 
 No competitor code copied. Current implementation is original; library usage and
 layout conventions are attributed above. Dates describe observation, not test results.
+
+- Node TypeScript runtime support (reviewed 2026-09-28): https://nodejs.org/docs/latest-v22.x/api/typescript.html — default type stripping from 22.18; used by the cross-language test.

@@ -1,4 +1,4 @@
-# Protocol v1 — initial implementation, cloud validation pending
+# Protocol v1 — M1 cloud results received; public/testnet validation pending
 
 ## State and time
 
@@ -8,7 +8,10 @@ No terms update, replacement delivery or destructive reset after creation.
 
 The buyer creates the agreement; the supplier cannot alter its terms. The buyer
 funds by deliveryDeadline inclusive. The supplier submits by the same inclusive
-boundary. Approval is by reviewDeadline inclusive. Buyer timeout refund is only
+boundary. Funding at that exact boundary leaves no usable delivery margin; the
+UI must show this and recheck chain time immediately before funding. It must not
+promise that an enabled button guarantees inclusion before the deadline.
+Approval is by reviewDeadline inclusive. Buyer timeout refund is only
 strictly later. Supplier refund is voluntary from Funded or Submitted. No third
 party can resolve disagreement. A supplier accepts the commercial risk of no
 approval before timeout; this policy must be visible before either party acts.

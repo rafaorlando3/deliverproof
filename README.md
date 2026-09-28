@@ -19,17 +19,24 @@ must be public synthetic data. A CID is not a promise of persistent availability
 
 ## Cloud-only M1 check
 
-Use Node 22.14+ or Node 24 and npm. Current owner restriction: do not run on his Mac.
+Validated reviewer environment: Node 22.22.2 and npm 10.9.7. Minimum Node 22.18
+for the direct TypeScript parity test; Node 24 is allowed but not yet tested.
+Current owner restriction: do not run on his Mac.
 
 ```
-npm install --ignore-scripts
+npm ci --ignore-scripts
 npm run check
-npm test
+npm run core:test
+npm run hardhat:test
 ```
 
-These commands are **instructions for the cloud reviewer**, not claimed results.
-The first cloud run must produce and review a lockfile. Solidity uses a pinned
-registry compiler with no testnet account, faucet, secret, deployment or paid RPC.
+Run and record both suites independently even if one fails. `npm test` remains
+a fail-fast convenience command and skips the contract suite after a core failure.
+The reviewed lockfile is included. Claude supplied cloud logs for commit
+`6bf43b5`: types passed, 17 core and 22 contract tests passed. Codex reviewed the
+patches and logs without running them on the Mac. These are local-EVM results,
+not Hedera testnet evidence. Solidity uses a pinned registry compiler with no
+testnet account, faucet, secret, deployment or paid RPC.
 Plain EVM tests use raw accounting units. Real Hedera unit behavior is a later gate.
 
 ## Components
