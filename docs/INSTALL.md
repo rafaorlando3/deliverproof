@@ -1,19 +1,41 @@
 # Installation and operator guide
 
-M2 source review package, not a published template. Do not run any of these
+Source review package, not a published template or public demo. Do not run any of these
 commands on the owner's Mac. Execution belongs in Claude's authorized cloud.
-No installation, test or frontend command deploys, signs or pins anything.
+Installation, build and frontend startup do not transmit public transactions or
+pin files. Authorized contract/chain tests deploy fixtures to an isolated local
+EVM; those fixture deployments are not a public Hedera deployment.
 
 ## Reproducible installation gate
 
-Use Node 22.22.2 and npm@10.9.7. The reviewed **M2** lockfile is included.
-Clean installation, lint/types/build and the cloud-local workflow were recorded
-for 42ee818; this checkout also contains later corrections not covered by that
-result. Record its exact SHA and repeat these independent checks in a clean cloud
-checkout. Do not regenerate the lock merely to hide an installation failure:
+The recommended recorded runtime is **Node 22.22.2 with npm@10.9.7**.
+Keep the reviewed lockfile. The source candidate b55b656 removes a test-only direct
+TypeScript import that failed on Node 20.18.3. Its cloud report uses candidate
+15c65ba and CLI 0.4.0 generated projects, with all commands passing on:
+
+| Node | Actual package manager | Dependency-engine warnings |
+| --- | --- | --- |
+| 20.18.3 | npm@10.8.2 | Two unsupported-engine entries (10 log lines) |
+| 22.22.2 | npm@10.9.7 | None observed |
+| 24.21.0 | npm@11.19.0 | None observed |
+
+The 20.18.3 entries concern vite@7.3.6 and eslint-visitor-keys@5.0.1, which require
+at least 20.19.0 on the Node 20 line. This is observed compatibility under ordinary
+installation, not engine-strict support. Other installation deprecation notices
+and one frontend lint warning remain; “exit 0” does not mean warning-free.
+The manifest declares `>=20.18.3 <21 || >=22.18.0 <23 || >=24.0.0 <25`.
+Do not claim all later versions or npm releases were validated.
+
+See [STATUS](STATUS.md) for the exact source correspondence and acceptance of this
+candidate. Record the SHA, actual runtime and installation mode for a release
+candidate. Do not regenerate the lock merely to hide an installation failure.
+The reported Node-compatibility battery used ordinary `npm ci --no-audit --no-fund`;
+its results must not be described as an `--ignore-scripts` run.
+
+In the authorized cloud, the independent release checks are:
 
 ```sh
-npm ci --ignore-scripts
+npm ci --no-audit --no-fund
 npm run check
 npm run core:test
 npm run hardhat:test
@@ -22,9 +44,11 @@ npm run next:check
 npm run next:build
 npm run next:check
 npm run chain:test
+npm run format:check
 ```
 
-Run each independently and preserve its exit status. The aggregate `npm run test`
+Run each independently and preserve its exit status. Documentation-only edits
+need static link/command/evidence review, not automatic repetition of all suites. The aggregate `npm run test`
 uses fail-fast behavior; it is not sufficient evidence if core fails. Run the
 frontend type check again after Next has generated its route declarations.
 `next build` must produce a complete build, not merely a started process.
@@ -41,7 +65,7 @@ These local values are **not** real Hedera currency behavior. Wallet gas and
 native balance displays use 18 decimals on that EVM; do not infer HBAR payouts.
 The frontend shows agreement amounts divided by 10^8 as HBAR-equivalents.
 
-In an isolated cloud environment, compile with `npm run hardhat:compile`, start
+After the applicable cloud-execution authorization, compile with `npm run hardhat:compile`, start
 the loopback node with `npm run hardhat:node`, and explicitly call
 `npm run hardhat:deploy:local`. Keep deterministic development account keys out
 of captured logs; Hardhat prints them at startup, so suppress that startup output.
@@ -167,25 +191,25 @@ there is intentionally no invented working repository URL here.
 
 ### Observed CLI 0.4.0 differences
 
-The official CLI snapshot 5732f5e was exercised with a local template override in
-the cloud on the M2b review. Normal generation installs with
-`npm install --legacy-peer-deps`; that is distinct from the clean `npm ci` check
-after generation. Supplied evidence reports only TypeScript/zod development-flag
-changes in the generated lock, followed by successful locked checks and build.
-Repeat that comparison for the final combined template.
+The official CLI 0.4.0 has been exercised using its local-template override in the
+cloud, first on M2b and later in the Node-compatibility candidate battery. It
+installs with `npm install --legacy-peer-deps`; that is distinct from the separate
+clean `npm ci` checks after generation. Inspect generated scripts and compare the
+lockfile before attributing a result to the source checkout.
 
-The CLI sets `packageManager` to npm@10.0.0 in generated manifests; this metadata
-is not evidence that npm@10.0.0 ran. The review actually used npm@10.9.7. Record
-actual Node/package-manager versions, keep the source pin, and do not claim the
-generated metadata pins the validated runtime. This upstream normalization is
-not patched here. A differing actual runtime needs its own validation.
+The CLI normalizes `packageManager` to npm@10.0.0 in the generated manifest. That
+metadata is not evidence that npm@10.0.0 ran. The actual three tested combinations
+are listed above; the source pin remains npm@10.9.7. Do not claim upstream
+normalization was patched by this template.
 
-The CLI also rewrites package-manager words in Markdown. Documentation uses
-version tokens such as npm@10.9.7 and explicit `npm run test` commands to survive
-that transformation. Re-read generated instructions; source text alone is not
-proof of correct generated documentation.
+The CLI also rewrites package-manager words in Markdown. Version tokens such as
+npm@10.9.7 and explicit `npm run test` commands reduce accidental substitution.
+Review the generated instructions after a documentation change, not just the
+source Markdown. A candidate generated by the local override is still not proof
+that the eventual public external-template install works.
 
-Normal generation currently warns because the root `format` script is absent.
-A real formatter and its reviewed lock delta remain requested from the cloud
-reviewer; a no-op script would not close this gate. No blanket formatting of
-review artifacts, immutable bundles or evidence is allowed.
+The earlier missing-format warning was resolved by the separately reviewed real
+Prettier script and lock delta. The latest supplied candidate-generation logs
+show no format warning. `format:check` excludes Markdown, lockfiles, evidence and
+selected generated files according to `.prettierignore`; it is not a documentation
+review. Never format immutable review packages or evidence artifacts in place.

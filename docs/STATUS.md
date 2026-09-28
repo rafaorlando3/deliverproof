@@ -1,9 +1,41 @@
 # Status — 2026-09-28
 
-## Current acceptance — C-0049
+## Current candidate — C-0050 / Node 20 and evaluator guide
 
-The seven reviewed commits through 6cb74c7 are now integrated. Executable source,
-configuration and lockfile are identical to cloud-validated candidate
+This review branch contains b55b656 plus documentation edits. Main remains
+9ef66f8, accepted below. The Node 20 delta is statically reviewed; executable
+acceptance awaits the exact tested source ref 15c65ba requested in X-0049. Do not
+call this branch integrated or its source-to-result correspondence verified yet.
+
+C-0050 supplies a valid bundle and four checked artifact hashes. Its cloud logs
+show the original 6cb74c7 failing the Hardhat before-hook on Node 20.18.3 because
+of a direct TypeScript import. The candidate moves the same six commitment
+vectors to Vitest chain tests and checks Submitted fields, with no production
+contract, verifier or UI changes and no changed dependency versions. Only root
+engine metadata changes in the lockfile.
+
+Reported CLI 0.4.0 local-template generation plus independent checks on 15c65ba:
+Node 20.18.3/npm@10.8.2, 22.22.2/npm@10.9.7 and 24.21.0/npm@11.19.0 all exit 0;
+core 53, contract 38, chain 43; lint has one warning; generated tree is clean;
+formatting has no warning. These are reviewed supplied logs, not Mac executions.
+There are two Node 20 unsupported-engine entries spanning 10 EBADENGINE log
+lines, not ten distinct dependency problems. They concern Vite and
+eslint-visitor-keys requiring at least 20.19.0 on that major line. Engine-strict
+support on 20.18.3 is not established. The preferred recorded runtime is 22.22.2.
+The mutation described by Claude has no supplied log in the original archive;
+its execution is reported, not independently evidenced here.
+
+The proposed guide's three hashes were checked. README and AGENTS have been
+adapted with a product introduction, architecture, commands, explicit pending
+public-evidence table and transaction/byte-verification limits. INSTALL removes
+superseded M2b/formatter claims. Direct Mac execution restrictions are retained.
+Static documentation review does not establish generated CLI documentation or a
+working public download. No new accounts, deployments, transactions or pinning.
+
+## Last integrated acceptance — C-0049
+
+Main 9ef66f8 integrates the seven reviewed commits through 6cb74c7. On that main
+commit, executable source, configuration and lockfile are identical to candidate
 6cb74c70ca23c788148a6b2af80f6bd16be0d7e9; only this status document differs.
 Historical pending descriptions below are superseded by this acceptance and the
 C-0049 section. UI-01/UI-02/UI-03 review is closed within the simulated-wallet,
@@ -31,8 +63,9 @@ pending. No competition submission or public deployment has been made.
 
 ## Decisions from review
 
-1. Use validated Node 22.22.2/npm@10.9.7. Minimum supported Node 22.18 for direct
-   TS imports; Node 24 allowed but not exercised. Lockfile root metadata agrees.
+1. Use recorded Node 22.22.2/npm@10.9.7 by default. The former test-only Node
+   22.18 type-stripping requirement is addressed by the separate C-0050 candidate
+   described above; its Node 20 and 24 results have their own evidence boundary.
 2. Keep inclusive funding/submission boundary in the documented protocol. UI must
    expose remaining chain time and require usable margin, without promising inclusion.
 3. Explain before participation: silence never pays the supplier; after review
@@ -229,8 +262,9 @@ pending. No competition submission or public deployment has been made.
 
 ## Required next
 
-1. Review and integrate Claude's separate five-minute evaluator guide, retaining
-   explicit placeholders until public repository, deployment and CID exist.
+1. Close the exact-source correspondence for b55b656 versus tested 15c65ba;
+   then integrate the reviewed Node compatibility delta and adapted evaluator
+   guide. Preserve pending public evidence and review CLI-generated instructions.
 2. Actual Hedera testnet and public IPFS path after applicable direct account,
    faucet, pinning and deployment authorization. Verify our deployment receipt,
    deposit/credit/withdraw/refund, tinybar/weibar conversion and custom errors.
@@ -239,5 +273,6 @@ pending. No competition submission or public deployment has been made.
 4. Competition eligibility, fresh competitor check, video and submission authorization.
 
 No public repo, deployment, paid service, production money or competition submission.
-Cloud evidence applies to 6cb74c7 and its identical executable source now integrated;
+Accepted integrated cloud evidence applies to 6cb74c7 and main 9ef66f8's identical
+executable source. This review branch adds the C-0050 candidate described above;
 real Hedera/IPFS and competition readiness remain unverified.
