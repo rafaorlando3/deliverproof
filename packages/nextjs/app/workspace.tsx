@@ -33,8 +33,8 @@ type Proof = { commitment: Hex; id: string; status: 'verified' | 'mismatch' | 'i
  * It survives account/network changes so a transmitted hash is never lost. In-memory only: after a
  * reload, recover the hash from the wallet's activity and recheck it read-only below.
  * A known hash never changes. Only a mined transaction provably tied to this attempt settles it:
- * the same hash, a transaction with the same sender and nonce (a replacement), or, when the wallet
- * returned no hash, the same sender, destination, calldata and value, sent after the attempt began. */
+ * the same hash or a transaction with the same sender and a nonce read from that original transaction.
+ * Without the original hash, a lookup is only an observation: identical calls can come from other tabs. */
 type Attempt = {
   action: Action;
   agreement: string;
@@ -43,8 +43,6 @@ type Attempt = {
   contract: Address;
   data: Hex;
   value: bigint;
-  startNonce: number | null;
-  startBlock: bigint;
   hash: Hex | null;
   txNonce: number | null;
   phase: 'wallet' | 'sent' | 'unknown' | 'confirmed' | 'reverted' | 'replaced';
@@ -373,10 +371,8 @@ export default function Workspace() {
       }
       if (!current(ticket)) throw new Error('Page context changed before wallet confirmation.');
       const wallet = createWalletClient({ chain, transport: custom(p) });
-      // Public identity of this attempt, recorded before the wallet opens: from here on the result may be
-      // unknown, and a retry could duplicate it. The pending nonce and tip block let a later lookup prove a
-      // transaction was sent by THIS attempt when the wallet never returned its hash.
-      const startNonce = await client.getTransactionCount({ address: account, blockTag: 'pending' }).catch(() => null);
+      // Record the intent before opening the wallet. An unknown result blocks another send.
+      // A pending nonce is not reserved for this page and cannot identify a later transaction.
       const base: Attempt = {
         action,
         agreement: action === 'create' ? 'new' : id,
@@ -385,8 +381,6 @@ export default function Workspace() {
         contract: t.address,
         data,
         value,
-        startNonce,
-        startBlock: tip.number,
         hash: null,
         txNonce: null,
         phase: 'wallet',
@@ -405,7 +399,7 @@ export default function Workspace() {
         setAttempt({
           ...base,
           phase: 'unknown',
-          note: 'The wallet returned no transaction hash, so it may or may not have been sent. Find it in your wallet activity and check it below; only a transaction provably from this attempt settles it.',
+          note: 'The wallet returned no transaction hash, so it may or may not have been sent. A hash from wallet activity can be checked below, but cannot identify this unresolved request. Do not send again.',
         });
         throw new Error(
           'Sending did not complete and the result is unknown. Check your wallet activity before trying again.',
@@ -457,7 +451,7 @@ export default function Workspace() {
         r.status,
         action === 'create' && r.status === 'success' ? createdId(r.logs, t.address) : null,
       );
-      setAttempt({ ...sent, hash: mined.hash, phase: verdict.phase, note: verdict.note });
+      setAttempt({ ...sent, phase: verdict.phase, note: verdict.note });
       if (verdict.phase !== 'confirmed') throw new Error(verdict.note);
       tx = mined.hash;
       if (!current(ticket)) return;
@@ -558,22 +552,12 @@ export default function Workspace() {
       }
       if (a.hash && same(hash, a.hash)) return void (await recheckAttemptInline(a, ticket));
       const sender = same(tx.from, a.account) && (tx.chainId === undefined || tx.chainId === a.chainId);
-      let linked = false;
-      if (a.hash)
-        linked = sender && a.txNonce !== null && tx.nonce === a.txNonce; // wallet replacement of the known hash
-      else
-        linked =
-          sender &&
-          same(tx.to, a.contract) &&
-          tx.input.toLowerCase() === a.data.toLowerCase() &&
-          tx.value === a.value &&
-          a.startNonce !== null &&
-          tx.nonce >= a.startNonce &&
-          !!r &&
-          r.blockNumber > a.startBlock;
+      // Only a nonce read from the original, wallet-returned hash identifies its replacement.
+      // Matching sender, calldata, value and time is insufficient when the original hash is missing.
+      const linked = !!a.hash && sender && a.txNonce !== null && tx.nonce === a.txNonce;
       if (!linked || !r) {
         const why = !linked
-          ? 'it is not provably the unresolved attempt (sender, nonce, calldata, value or timing do not match)'
+          ? 'its identity is not tied to the original wallet request; matching call details alone are insufficient'
           : 'it is not mined yet';
         if (current(ticket))
           setMessage(`${seen} It does not settle the unresolved attempt: ${why}. The attempt stays unresolved.`);
