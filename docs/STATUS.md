@@ -140,13 +140,47 @@
   run core/type/build checks and browser CAR preparation/retrieval in the combined
   checkout. No new dependency, wallet/UI change, network access or upload added.
 
+## C-0046/C-0047 review and remaining UI identity correction
+
+- Codex reviewed C-0046 package hashes/deltas/logs (29/29 and 10/10). Supplied
+  ac47adc cloud results: core 53, contract 39, chain 42; lifecycle 56/56 and
+  UI-01 12/12. M2c/M2d/M2e evidence is accepted within that cloud-local scope.
+  Deployment crash/concurrency recovery involved zero recovery sends; fsync,
+  reorg and reverted-deploy scenarios remain untested. This supersedes the older
+  pending-evidence descriptions above, not the source-integration boundary.
+- UI-02 (manual release of unknown attempts) and UI-03 (wrong-hash resolution)
+  prevented integration of ac47adc. C-0047 supplied 5861c2b. Codex independently
+  checked 11/11 hashes, bundle provenance, the source delta and provided results:
+  baseline ac47adc 2/11; revised UI-02/03 12/12, UI-01 12/12 and lifecycle 56/56;
+  clean install/types/lint/build/format passed in the supplied cloud logs.
+- UI-02 and the known-original-hash corrections are accepted technically. The
+  hashless path still resolved by matching sender/call/value, nonce >= an observed
+  pending nonce and a later block. Another tab can produce an identical call;
+  those predicates do not establish which wallet request produced a transaction.
+- Separate proposed review commit **6cb74c70ca23c788148a6b2af80f6bd16be0d7e9**
+  on **5861c2b4fc05c41482eb508df7df2946a9f8491a** removes that inference. A
+  hashless attempt remains unknown during arbitrary transaction lookups; the
+  observation can be displayed independently. Known hashes/nonces retain their
+  recovery path, and the original hash remains visible after replacement.
+- Candidate source is in refs/review/codex-ui03-identity, not the working branch.
+  Immutable bundle, one-commit patch and cloud acceptance plan are in
+  ../revisoes/deliverproof/parecer-codex-ui0203-2026-09-28/.
+  This candidate has not been executed or accepted. Existing lost-response tests
+  must change their expected outcome before cloud validation; old green totals
+  do not validate the new behavior. Main executable source remains 5875fe3.
+- No project/test/compiler/installer/server/container was run on the Mac.
+  The in-memory-only limitation persists; reload is not proof of safe resending.
+
 ## Required next
 
-1. Claude cloud validation of the combined M2c/M2d/M2e corrections and UI-01 fix:
-   untouched baseline, reviewed deltas, fresh locked installation, core/contract/
-   chain and frontend checks, actual crash/timeout/recovery and browser scenarios.
-2. Real format script with reviewed dependencies; repeat normal CLI generation,
-   inspect text/manifest/lock changes and repeat clean generated checks in cloud.
+1. Claude cloud reproduction of the identical external-call / hashless original
+   counterexample on 5861c2b, then validation of 6cb74c7. Preserve separate lookup
+   observations, unknown-attempt blocking, known-hash recovery and replacement
+   provenance. Return the exact final SHA with affected UI/type/lint/build/format
+   results; no need to repeat unaffected deployment/core suites solely for UI.
+2. Finish review of the complete combined delta and mechanical formatting before
+   integration. Official CLI format/generation evidence exists on ac47adc; that
+   local-template evidence does not establish public external-template delivery.
 3. Actual Hedera testnet and public IPFS path after specific account/faucet/pinning
    authorization; verify deposit/credit/withdraw/refund and tinybar/weibar behavior.
 4. Clean external-template installation from an authorized public repository;
@@ -154,5 +188,5 @@
 5. Competition eligibility, fresh competitor check, video and submission authorization.
 
 No public repo, deployment, paid service, production money or competition submission.
-Cloud logs support M1, reviewed M2a and the exact M2b boundary on 42ee818. They do
-not validate the combined corrections, real Hedera/IPFS or competition readiness.
+Evidence belongs to the exact cloud commits recorded above. It does not validate
+6cb74c7, real Hedera/IPFS or competition readiness; integration is still pending.
