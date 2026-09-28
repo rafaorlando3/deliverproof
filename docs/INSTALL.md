@@ -24,7 +24,7 @@ at least 20.19.0 on the Node 20 line. This is observed compatibility under ordin
 installation, not engine-strict support. Other installation deprecation notices
 and one frontend lint warning remain; “exit 0” does not mean warning-free.
 The manifest declares `>=20.18.3 <21 || >=22.18.0 <23 || >=24.0.0 <25`.
-Do not claim all later versions or npm releases were validated.
+Do not claim that every later version was validated, for Node or for npm.
 
 Source b55b656 differs from tested 15c65ba only in STATUS.md; later guide edits
 also affect documentation only. See [STATUS](STATUS.md) for acceptance boundaries. Record the SHA, actual runtime and installation mode for a release

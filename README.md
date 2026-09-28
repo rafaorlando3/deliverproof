@@ -29,12 +29,12 @@ Requirements:
 The external-template command below is a **pending publication recipe**, not a
 working public download. Replace the placeholders only after an authorized public
 repository exists and a clean external install has been recorded. Select Next.js,
-Hardhat, npm and testnet in the CLI. In the current source checkout, use the
+Hardhat, testnet and the package manager npm. In the current source checkout, use the
 [installation guide](docs/INSTALL.md#reproducible-installation-gate) in the
 owner-authorized cloud environment; do not run the project on the owner's Mac.
 
 ```sh
-npm create scaffold-hbar@latest -- --template ⟨OWNER/REPO⟩
+npx create-scaffold-hbar@latest --template ⟨OWNER/REPO⟩
 cd ⟨project-folder⟩
 npm run check
 npm run core:test
