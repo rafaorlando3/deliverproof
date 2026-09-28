@@ -15,8 +15,8 @@
   220-step sequence exercised approved/refunded/withdrawn outcomes and accounting.
 - Codex checked package hashes, source delta, log totals and integrated the exact
   commits. No project, test, compiler or installer was run on the Mac.
-- Follow-up edits affect documentation/runtime metadata only; executable code and
-  tests match the tested commit. A fresh cloud npm ci with the reviewed lockfile
+- At M1 acceptance, follow-up edits affected documentation/runtime metadata only;
+  M1 executable code and tests matched the tested commit. M2 changes are separate. A fresh cloud npm ci with the reviewed lockfile
   remains an installation check; the reported first run used npm install.
 
 ## Decisions from review
@@ -32,16 +32,34 @@
 5. Cloud reviewer/CI must record core and contract runs independently. npm test
    keeps fail-fast behavior; its short-circuit is explicit, not a full-suite result.
 
+## M2 source increment (cloud validation pending)
+
+- M2a commit 7f4c383: independent deployment/code/receipt/event/state verifier and
+  13 written tests. Package delivered to Claude through X-0030. No execution here.
+- M2b: original Next.js interface, core exports, browser-local CAR preparation and
+  tests, scaffold manifest, guarded explicit deploy script and operator/cloud guides.
+- UI covers create/deposit/submit/verify/approve/refund/withdraw, explicit wallet
+  confirmation, shared-terms hash, policy acknowledgement, verified-byte download,
+  public observation export and invalidation on account/network/agreement changes.
+- The default deployment manifest remains null. No public contract or invented hash.
+- Root workspace/dependency metadata now includes the frontend. The existing M1
+  lockfile is intentionally preserved as historical input; **M2 npm ci is not ready
+  until the cloud reviewer generates and returns a reviewed lockfile**.
+- This frontend has not been run, rendered or built on the Mac. Source inspection
+  and packaging do not prove compilation, layout quality or successful workflow.
+- The deploy utility writes a public candidate only after receipt/runtime checks;
+  installing it is a separate operator review. It has not been executed here.
+
 ## Required next
 
-1. M2: minimal Next.js workflow, independent expected-deployment/event verification,
-   synthetic-file delivery workflow and reusable scaffold manifest.
-2. Fresh locked install, frontend type/lint/build and smoke tests in the cloud.
-3. Real testnet and public IPFS path with applicable account/credential authorization;
-   evidence for deposit, approval, credit, withdrawal and refund, including units.
-4. Clean npm create scaffold-hbar installation against an eventual authorized public
-   repository; exact pinned dependencies, documentation, and acceptance evidence.
+1. Claude cloud validation of M2a/M2b, independent lifecycle/ABI tests, reviewed
+   lockfile and fresh npm ci, frontend lint/types/build and desktop/mobile rehearsal.
+2. Official CLI local-template transformation plus clean generated build in cloud.
+3. Actual Hedera testnet and public IPFS path after specific account/faucet/pinning
+   authorization; verify deposit/credit/withdraw/refund and tinybar/weibar behavior.
+4. Clean external-template installation from an authorized public repository;
+   do not substitute a local template test for that public distribution proof.
 5. Competition eligibility, fresh competitor check, video and submission authorization.
 
 No public repo, deployment, paid service, production money or competition submission.
-Cloud logs and independent review support M1 progress, not competition readiness.
+Cloud logs and independent review support M1 progress, not M2 or competition readiness.

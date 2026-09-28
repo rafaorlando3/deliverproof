@@ -5,7 +5,10 @@
   "type": "commonjs",
   "scripts": {
     "compile": "hardhat compile",
-    "test": "hardhat test"
+    "test": "hardhat test",
+    "node": "hardhat node --hostname 127.0.0.1",
+    "deploy:local": "node scripts/deploy.cjs --local",
+    "deploy:testnet": "node scripts/deploy.cjs --testnet"
   },
   "devDependencies": {
     "hardhat": "2.29.1",

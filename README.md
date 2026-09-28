@@ -2,58 +2,67 @@
 
 Verify the delivered bytes. Approve that exact version. Withdraw separately.
 
-**Work in progress — milestone M1, not deployed, not executed on the author's Mac,
-not ready for submission.** This first package implements a bounded testnet
-escrow contract and independent file-verification primitives for cloud review.
-See [status and remaining gates](docs/STATUS.md).
+**M2 source written; cloud validation pending. Not deployed or submitted.**
+The earlier M1 cloud review recorded 17 core and 22 contract tests passing on
+`6bf43b5`. That result does not cover this new frontend/network increment.
+See [current status and remaining gates](docs/STATUS.md).
 
-A buyer creates immutable terms and deposits the exact test-HBAR amount. A
-supplier records one final IPFS delivery. An independent reader checks every
-CAR block, reconstructs the UnixFS file and compares its SHA-256 and size.
-Only explicit buyer approval of that exact commitment releases supplier credit.
-A separate withdrawal confirms transfer. Silence never releases funds.
+DeliverProof is a small, original Scaffold-HBAR template for one buyer, one
+supplier and one public synthetic deliverable. The buyer fixes the terms and
+funds the exact test-HBAR amount. The supplier records one IPFS delivery. The
+reader independently checks deployment provenance, event history, canonical
+receipts and stored state at one block; file verification separately checks CAR
+blocks, reconstructs the file and compares SHA-256, size and domain commitment.
 
-This proves correspondence of bytes and recorded wallet actions, not quality,
-authorship, civil identity or production suitability. All demonstration files
-must be public synthetic data. A CID is not a promise of persistent availability.
+Explicit buyer approval creates supplier credit. Actual withdrawal is a separate
+transaction. **Silence never releases money:** after the review deadline the
+buyer can reclaim the deposit even if a delivery was submitted. Both participants
+must accept that policy; this prototype has no arbitration or quality judgment.
 
-## Cloud-only M1 check
+## What is included
 
-Validated reviewer environment: Node 22.22.2 and npm 10.9.7. Minimum Node 22.18
-for the direct TypeScript parity test; Node 24 is allowed but not yet tested.
-Current owner restriction: do not run on his Mac.
+- Original bounded Solidity contract: no admin, upgrades, protocol fee or arbiter.
+- Domain-separated agreement/file commitments and explicit Hedera RPC unit conversion.
+- Bounded offline CAR/UnixFS verification and fixed trustless gateway retrieval.
+- Read-only network verifier anchored to an operator-reviewed deployment, never an
+  uploaded receipt. Unavailable or incomplete history produces an inconclusive result.
+- Minimal Next.js workflow: create, deposit, prepare a CAR, verify bytes, record,
+  approve/refund and withdraw, with explicit wallet confirmation for each transaction.
+- Public evidence export, download of verified bytes for review, exact shared-terms
+  check, account/network-change invalidation and duplicate-action guard.
+- Scaffold manifest, explicit deployment utility and cloud acceptance checklist.
 
-```
-npm ci --ignore-scripts
-npm run check
-npm run core:test
-npm run hardhat:test
-```
+The default manifest is null: no pretend contract or pre-funded wallet. Local CAR
+preparation uploads nothing. Pinning and funded testnet activity require separate
+operator authorization. Files must be public synthetic data, never customer data.
 
-Run and record both suites independently even if one fails. `npm test` remains
-a fail-fast convenience command and skips the contract suite after a core failure.
-The reviewed lockfile is included. Claude supplied cloud logs for commit
-`6bf43b5`: types passed, 17 core and 22 contract tests passed. Codex reviewed the
-patches and logs without running them on the Mac. These are local-EVM results,
-not Hedera testnet evidence. Solidity uses a pinned registry compiler with no
-testnet account, faucet, secret, deployment or paid RPC.
-Plain EVM tests use raw accounting units. Real Hedera unit behavior is a later gate.
+## Review and installation
 
-## Components
+[Installation and deployment guide](docs/INSTALL.md) ·
+[Cloud M2 acceptance checklist](docs/VALIDATION-M2.md) ·
+[Protocol](docs/PROTOCOL.md)
 
-- `packages/hardhat/contracts/DeliverProof.sol`: no admin, upgrades, fees or arbitrator.
-- `packages/core/src/delivery.ts`: domain-separated commitment and explicit HBAR conversion.
-- `packages/core/src/content.ts`: bounded CAR/DAG verifier; fixed trustless gateway choices.
-- `packages/core/src/receipt.ts`: strict transaction-observation primitive, not yet a full receipt verifier.
-- `docs/PROTOCOL.md`: immutable terms, deadlines, accounting, trust boundaries.
+Node 22.22.2/npm 10.9.7 was the M1 review environment. Minimum Node 22.18;
+Node 24 is allowed but untested. The existing lockfile covers M1; the cloud reviewer
+must generate and review the M2 dependency lock, then prove a clean npm ci/build.
+Do not run the project, compiler, installer, server or tests on the owner's Mac.
 
-Next milestone: minimal Next.js workflow, explicit wallet review, read-only network
-verification, testnet proof and clean external-template installation. This M1
-package does not yet expose a working frontend or runnable scaffold manifest.
-No HCS/indexer, marketplace, real funds, arbitration or multiple milestones.
+The `.candidate.json` deployment file contains only public provenance and must be
+reviewed before installation. Testnet keys come only from protected process
+environment and are never passed to the frontend or stored in this repository.
+No deploy runs automatically from install/build/test/start.
 
-## License and provenance
+## Evidence boundaries
 
-MIT. Original DeliverProof source. Scaffold-HBAR's official blank template and
-CLI were inspected to align package paths and the external-template contract;
-no competitor source was incorporated. [Sources](docs/SOURCES.md).
+Byte correspondence is not proof of quality, authorship or civil identity.
+A CID does not guarantee availability. Approval-credit is not withdrawal.
+A canonical RPC observation is not a cryptographic light client or guarantee
+against future chain history changes. Local EVM tests do not prove Hedera's
+Solidity tinybar versus RPC weibar behavior. Mainnet is not supported.
+
+M2 still needs cloud validation, actual testnet/IPFS evidence, a public clean
+scaffold install, final eligibility checks and separately authorized publication
+and submission. No claim of competition readiness or prize is made.
+
+MIT. Original source; official Scaffold-HBAR layout/manifest inspected for
+compatibility. No competitor source copied. [Sources](docs/SOURCES.md).

@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./abi": "./src/abi.ts",
+    "./artifact": "./src/artifact.ts",
+    "./content": "./src/content.ts",
+    "./delivery": "./src/delivery.ts",
+    "./network": "./src/network.ts",
+    "./receipt": "./src/receipt.ts"
+  },
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

@@ -1,6 +1,6 @@
 # DeliverProof working agreement
 
-This is milestone M1, a testnet-only prototype, not a competition submission.
+This is milestone M2 under cloud review, a testnet-only prototype, not a competition submission.
 Follow the owner's direct restrictions: write/review/package on the Mac; run no
 project, server, suite, compiler, installer or container there. Claude validates
 in his cloud environment under the shared channel agreement. Do not create
@@ -22,10 +22,11 @@ without the applicable direct authorization. Never add credentials to this repo.
 - Keep the expected chain/contract/agreement and deployment provenance independent
   of untrusted exported receipt data in the future network verifier.
 
-## Cloud-only validation for M1
+## Cloud-only validation
 
 Use the validated Node 22.22.2 and npm 10.9.7. Minimum Node 22.18, or Node 24
-(the Node 24 path is not yet tested). A reviewed lockfile is now included.
+(the Node 24 path is not yet tested). The M1 lockfile is included but does not yet include M2 frontend dependencies.
+The cloud reviewer must generate and return a reviewed M2 lockfile, then prove npm ci.
 Run npm ci --ignore-scripts, npm run check, npm run core:test, and npm run
 hardhat:test independently in the cloud; preserve both test results even if one
 fails. npm test is a fail-fast convenience command, not sufficient evidence after
@@ -37,6 +38,6 @@ required in a later authorized phase. No automatic network deployments in tests.
 
 packages/hardhat: original contract, local deterministic tests, pinned solc.
 packages/core: original commitment, CAR/UnixFS and receipt-observation primitives.
-packages/nextjs: next milestone; not implemented yet. docs/STATUS.md is authoritative.
+packages/nextjs: original M2 frontend, cloud validation pending. docs/STATUS.md is authoritative.
 Scaffold-HBAR official blank template and CLI were inspected for layout/manifest
 compatibility, not copied as a large dependency tree. No competitor code copied.
