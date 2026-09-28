@@ -521,3 +521,6 @@ footer {
     flex-basis: 100px;
   }
 }
+.attempt p {
+  overflow-wrap: anywhere;
+}

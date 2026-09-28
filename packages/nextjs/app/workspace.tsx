@@ -4,7 +4,6 @@ import Link from 'next/link';
 import {
   createWalletClient,
   custom,
-  decodeFunctionData,
   encodeFunctionData,
   isAddress,
   keccak256,
@@ -32,31 +31,68 @@ type Action = 'create' | 'fund' | 'submit' | 'approve' | 'refund' | 'withdraw';
 type Proof = { commitment: Hex; id: string; status: 'verified' | 'mismatch' | 'inconclusive'; message: string };
 /** Public record of one wallet transaction attempt, kept apart from the agreement shown on screen.
  * It survives account/network changes so a transmitted hash is never lost. In-memory only: after a
- * reload, recover the hash from the wallet's activity and recheck it read-only below. */
+ * reload, recover the hash from the wallet's activity and recheck it read-only below.
+ * A known hash never changes. Only a mined transaction provably tied to this attempt settles it:
+ * the same hash, a transaction with the same sender and nonce (a replacement), or, when the wallet
+ * returned no hash, the same sender, destination, calldata and value, sent after the attempt began. */
 type Attempt = {
   action: Action;
   agreement: string;
   account: Address;
   chainId: number;
+  contract: Address;
+  data: Hex;
+  value: bigint;
+  startNonce: number | null;
+  startBlock: bigint;
   hash: Hex | null;
-  phase: 'wallet' | 'sent' | 'unknown' | 'confirmed' | 'reverted';
+  txNonce: number | null;
+  phase: 'wallet' | 'sent' | 'unknown' | 'confirmed' | 'reverted' | 'replaced';
   note: string;
 };
+type SeenTx = {
+  hash: Hex;
+  from: Address;
+  to: Address | null;
+  input: Hex;
+  value: bigint;
+  nonce: number;
+  chainId?: number;
+};
 const unresolved = (a: Attempt | null) => !!a && (a.phase === 'wallet' || a.phase === 'sent' || a.phase === 'unknown');
+const same = (x?: string | null, y?: string | null) => !!x && !!y && x.toLowerCase() === y.toLowerCase();
+/** Outcome of a mined transaction already tied to the attempt. Different calldata means our action did not happen. */
+function judge(
+  a: Attempt,
+  tx: SeenTx,
+  status: 'success' | 'reverted',
+  created: bigint | null = null,
+): { phase: Attempt['phase']; note: string } {
+  if (!same(tx.to, a.contract) || tx.input.toLowerCase() !== a.data.toLowerCase() || tx.value !== a.value)
+    return {
+      phase: 'replaced',
+      note: `A different transaction from this account with the same nonce was mined (${tx.hash}). This ${a.action} did not happen.`,
+    };
+  if (status !== 'success')
+    return {
+      phase: 'reverted',
+      note: `Transaction ${tx.hash} was included but reverted. The agreement did not change.`,
+    };
+  return {
+    phase: 'confirmed',
+    note:
+      created !== null
+        ? `Confirmed: agreement ${created} was created by ${tx.from} (${tx.hash}).`
+        : `Confirmed receipt for ${tx.hash}. The agreement check below is separate.`,
+  };
+}
 const phaseLabel = {
   wallet: 'Waiting for your wallet',
   sent: 'Submitted, not confirmed yet',
   unknown: 'Unknown: do not send again',
   confirmed: 'Confirmed',
+  replaced: 'Replaced: this action did not happen',
   reverted: 'Reverted: nothing changed',
-};
-const functionOf: Record<Action, string> = {
-  create: 'createAgreement',
-  fund: 'fund',
-  submit: 'submit',
-  approve: 'approve',
-  refund: 'refund',
-  withdraw: 'withdraw',
 };
 const t = deployment();
 const connection = t ? clients(t) : null;
@@ -114,12 +150,10 @@ export default function Workspace() {
     taskLock = useRef(false);
   const attemptRef = useRef<Attempt | null>(null);
   const [attempt, setAttemptState] = useState<Attempt | null>(null),
-    [recoverHash, setRecoverHash] = useState(''),
-    [confirmRelease, setConfirmRelease] = useState(false);
+    [recoverHash, setRecoverHash] = useState('');
   const setAttempt = (value: Attempt | null) => {
     attemptRef.current = value;
     setAttemptState(value);
-    setConfirmRelease(false);
   };
   const locked = unresolved(attempt);
   useEffect(() => {
@@ -267,7 +301,8 @@ export default function Workspace() {
       if (fresh && fresh.status !== 'verified')
         throw new Error(`Fresh chain verification did not complete: ${fresh.code}.`);
       const agreement = fresh?.status === 'verified' ? fresh.agreement : null;
-      const now = (await reader.block('latest')).timestamp;
+      const tip = await reader.block('latest');
+      const now = tip.timestamp;
       if (
         agreement &&
         ['fund', 'submit', 'approve'].includes(action) &&
@@ -338,14 +373,26 @@ export default function Workspace() {
       }
       if (!current(ticket)) throw new Error('Page context changed before wallet confirmation.');
       const wallet = createWalletClient({ chain, transport: custom(p) });
-      const context = { action, agreement: action === 'create' ? 'new' : id, account, chainId: t.chainId };
-      // Recorded before the wallet opens: from here on the result may be unknown, and a retry could duplicate it.
-      setAttempt({
-        ...context,
+      // Public identity of this attempt, recorded before the wallet opens: from here on the result may be
+      // unknown, and a retry could duplicate it. The pending nonce and tip block let a later lookup prove a
+      // transaction was sent by THIS attempt when the wallet never returned its hash.
+      const startNonce = await client.getTransactionCount({ address: account, blockTag: 'pending' }).catch(() => null);
+      const base: Attempt = {
+        action,
+        agreement: action === 'create' ? 'new' : id,
+        account,
+        chainId: t.chainId,
+        contract: t.address,
+        data,
+        value,
+        startNonce,
+        startBlock: tip.number,
         hash: null,
+        txNonce: null,
         phase: 'wallet',
         note: 'Review the network, destination and amount in your wallet. Do not sign if they differ.',
-      });
+      };
+      setAttempt(base);
       setMessage('Review the network, destination and amount in your wallet. Do not sign if they differ.');
       let tx: Hex;
       try {
@@ -356,25 +403,39 @@ export default function Workspace() {
           throw new Error('You rejected the request in your wallet. Nothing was sent.');
         }
         setAttempt({
-          ...context,
-          hash: null,
+          ...base,
           phase: 'unknown',
-          note: 'The wallet returned no transaction hash, so it may or may not have been sent. Find it in your wallet activity and recheck it below.',
+          note: 'The wallet returned no transaction hash, so it may or may not have been sent. Find it in your wallet activity and check it below; only a transaction provably from this attempt settles it.',
         });
         throw new Error(
           'Sending did not complete and the result is unknown. Check your wallet activity before trying again.',
         );
       }
-      // Keep the hash even if the account, network or agreement changed meanwhile.
-      setAttempt({ ...context, hash: tx, phase: 'sent', note: 'Submitted. Waiting for confirmation.' });
+      // Keep the hash even if the account, network or agreement changed meanwhile. From now on it never changes.
+      const sentTx = await client.getTransaction({ hash: tx }).catch(() => null);
+      const sent: Attempt = {
+        ...base,
+        hash: tx,
+        txNonce: sentTx && same(sentTx.from, account) ? sentTx.nonce : null,
+        phase: 'sent',
+        note: 'Submitted. Waiting for confirmation.',
+      };
+      setAttempt(sent);
       if (current(ticket)) setMessage(`Transaction submitted: ${tx}. It is not yet confirmed.`);
       let r: Awaited<ReturnType<typeof client.waitForTransactionReceipt>>;
+      let replacement: SeenTx | null = null;
       try {
-        r = await client.waitForTransactionReceipt({ hash: tx, timeout: 60000, retryCount: 0 });
+        r = await client.waitForTransactionReceipt({
+          hash: tx,
+          timeout: 60000,
+          retryCount: 0,
+          onReplaced: rep => {
+            replacement = rep.transaction as SeenTx;
+          },
+        });
       } catch {
         setAttempt({
-          ...context,
-          hash: tx,
+          ...sent,
           phase: 'unknown',
           note: 'No confirmation within 60 seconds. It may still confirm. Recheck this hash before sending anything else.',
         });
@@ -382,21 +443,23 @@ export default function Workspace() {
           `No confirmation within 60 seconds for ${tx}. It may still confirm: recheck it below and do not send again.`,
         );
       }
-      if (r.status !== 'success') {
-        setAttempt({
-          ...context,
-          hash: tx,
-          phase: 'reverted',
-          note: 'Included in a block but reverted. The agreement did not change.',
-        });
-        throw new Error(`Transaction reverted: ${tx}. The agreement did not change.`);
+      // The terminal receipt must belong to this attempt: the original, or the wallet's replacement for the same nonce.
+      const mined: SeenTx | null =
+        replacement ?? (await client.getTransaction({ hash: r.transactionHash }).catch(() => null));
+      if (!mined) {
+        const note = `A receipt exists for ${r.transactionHash}, but its transaction could not be read. Recheck before sending anything else.`;
+        setAttempt({ ...sent, phase: 'unknown', note });
+        throw new Error(note);
       }
-      setAttempt({
-        ...context,
-        hash: tx,
-        phase: 'confirmed',
-        note: 'Confirmed receipt. The agreement check below is separate.',
-      });
+      const verdict = judge(
+        sent,
+        mined,
+        r.status,
+        action === 'create' && r.status === 'success' ? createdId(r.logs, t.address) : null,
+      );
+      setAttempt({ ...sent, hash: mined.hash, phase: verdict.phase, note: verdict.note });
+      if (verdict.phase !== 'confirmed') throw new Error(verdict.note);
+      tx = mined.hash;
       if (!current(ticket)) return;
       const target = action === 'create' ? createdId(r.logs, t.address)?.toString() : id;
       if (!target) throw new Error('Successful transaction lacks the expected Created event. Do not infer creation.');
@@ -414,70 +477,121 @@ export default function Workspace() {
         );
     });
   }
-  /** Read-only: never signs or sends. Only a receipt releases an unresolved attempt; a missing receipt keeps it. */
-  async function recheck() {
+  /** Read-only helpers: never sign or send. */
+  async function readTx(hash: Hex): Promise<SeenTx | null> {
+    if (!connection) return null;
+    try {
+      return (await connection.client.getTransaction({ hash })) as SeenTx;
+    } catch (e) {
+      if (e instanceof Error && e.name === 'TransactionNotFoundError') return null;
+      throw new Error('Could not read the transaction. Nothing changed; try again.');
+    }
+  }
+  async function readReceipt(hash: Hex) {
+    if (!connection) return null;
+    try {
+      return await connection.client.getTransactionReceipt({ hash });
+    } catch (e) {
+      if (e instanceof Error && e.name === 'TransactionReceiptNotFoundError') return null;
+      throw new Error('Could not read the receipt. Nothing changed; try again.');
+    }
+  }
+  function settle(
+    a: Attempt,
+    tx: SeenTx,
+    r: { status: 'success' | 'reverted'; logs: readonly { address: Address; topics: readonly Hex[]; data: Hex }[] },
+    ticket: number,
+  ) {
+    const created = t && a.action === 'create' && r.status === 'success' ? createdId(r.logs, t.address) : null;
+    const v = judge(a, tx, r.status, created);
+    setAttempt({ ...a, hash: a.hash ?? tx.hash, phase: v.phase, note: v.note });
+    if (current(ticket)) setMessage(v.note);
+  }
+  /** The attempt's own hash, which never changes. No receipt keeps it unresolved. */
+  async function recheckAttempt() {
     await task('Rechecking transaction', async ticket => {
-      if (!t || !connection) throw new Error('No verified deployment configured.');
       const a = attemptRef.current;
-      const hash = (recoverHash.trim() || a?.hash || '') as Hex;
-      if (!/^0x[0-9a-fA-F]{64}$/.test(hash))
-        throw new Error('Paste the transaction hash from your wallet activity (0x followed by 64 hex characters).');
-      const { client } = connection;
-      let tx: Awaited<ReturnType<typeof client.getTransaction>>;
-      try {
-        tx = await client.getTransaction({ hash });
-      } catch (e) {
-        if (e instanceof Error && e.name === 'TransactionNotFoundError') {
-          const note = 'This RPC does not know that hash yet. It stays unresolved; recheck later.';
-          if (a && !a.hash) setAttempt({ ...a, note });
-          if (current(ticket)) setMessage(note);
-          return;
-        }
-        throw new Error('Could not read the transaction. The attempt stays unresolved.');
+      if (!t || !connection || !a || !a.hash || !unresolved(a)) return;
+      const r = await readReceipt(a.hash);
+      if (r) {
+        const tx = await readTx(a.hash);
+        if (!tx) throw new Error('The receipt exists but the transaction could not be read. It stays unresolved.');
+        return settle(a, tx, r, ticket);
       }
-      if (!tx.to || tx.to.toLowerCase() !== t.address.toLowerCase())
-        throw new Error('That hash is not a transaction to this installation\u2019s contract.');
-      let fn = '';
-      try {
-        fn = decodeFunctionData({ abi: deliverProofAbi, data: tx.input }).functionName;
-      } catch {
-        /* unknown call */
+      let note = `No receipt for ${a.hash} yet. It stays unresolved; recheck later.`;
+      if (a.txNonce !== null) {
+        const minedCount = await connection.client
+          .getTransactionCount({ address: a.account, blockTag: 'latest' })
+          .catch(() => null);
+        if (minedCount !== null && minedCount > a.txNonce)
+          note = `Another transaction from this account with nonce ${a.txNonce} was mined, so ${a.hash} will not confirm. Paste the hash your wallet shows for that nonce below to settle this attempt.`;
       }
-      if (
-        a &&
-        (tx.from.toLowerCase() !== a.account.toLowerCase() ||
-          fn !== functionOf[a.action] ||
-          (tx.chainId !== undefined && tx.chainId !== a.chainId))
-      )
-        throw new Error('That hash belongs to a different account, network or action than the unresolved attempt.');
-      let r: Awaited<ReturnType<typeof client.getTransactionReceipt>> | null = null;
-      try {
-        r = await client.getTransactionReceipt({ hash });
-      } catch (e) {
-        if (!(e instanceof Error && e.name === 'TransactionReceiptNotFoundError'))
-          throw new Error('Could not read the receipt. The attempt stays unresolved.');
-      }
-      if (!r) {
-        const note = `Found ${hash}, not confirmed yet. It stays unresolved; recheck later.`;
-        if (a) setAttempt({ ...a, hash, phase: 'unknown', note });
-        if (current(ticket)) setMessage(note);
-        return;
-      }
-      if (r.status !== 'success') {
-        const note = `Transaction ${hash} was included but reverted. The agreement did not change.`;
-        if (a) setAttempt({ ...a, hash, phase: 'reverted', note });
-        if (current(ticket)) setMessage(note);
-        return;
-      }
-      const created = createdId(r.logs, t.address);
-      const note =
-        created !== null
-          ? `Confirmed: agreement ${created} was created by ${tx.from}.`
-          : `Confirmed in block ${r.blockNumber} (${fn || 'call'} from ${tx.from}).`;
-      if (a) setAttempt({ ...a, hash, phase: 'confirmed', note });
-      setRecoverHash('');
-      if (current(ticket)) setMessage(`${note} Verify the agreement to see its independent evidence.`);
+      setAttempt({ ...a, phase: 'unknown', note });
+      if (current(ticket)) setMessage(note);
     });
+  }
+  /** Any hash can be looked up. It settles the unresolved attempt only when provably tied to it. */
+  async function lookup() {
+    await task('Checking transaction', async ticket => {
+      if (!t || !connection) throw new Error('No verified deployment configured.');
+      const hash = recoverHash.trim() as Hex;
+      if (!/^0x[0-9a-fA-F]{64}$/.test(hash))
+        throw new Error('Paste a transaction hash from your wallet activity (0x followed by 64 hex characters).');
+      const tx = await readTx(hash);
+      if (!tx) {
+        if (current(ticket)) setMessage(`This RPC does not know ${hash}. Nothing changed.`);
+        return;
+      }
+      const r = await readReceipt(hash);
+      const a = attemptRef.current;
+      const created = r?.status === 'success' ? createdId(r.logs, t.address) : null;
+      const seen = !r
+        ? `${hash} is not mined yet.`
+        : r.status !== 'success'
+          ? `${hash} was included but reverted.`
+          : created !== null
+            ? `${hash} created agreement ${created} (sender ${tx.from}).`
+            : `${hash} was confirmed in block ${r.blockNumber} (sender ${tx.from}).`;
+      if (!a || !unresolved(a)) {
+        if (current(ticket)) setMessage(`${seen} Read-only lookup; nothing changed.`);
+        return;
+      }
+      if (a.hash && same(hash, a.hash)) return void (await recheckAttemptInline(a, ticket));
+      const sender = same(tx.from, a.account) && (tx.chainId === undefined || tx.chainId === a.chainId);
+      let linked = false;
+      if (a.hash)
+        linked = sender && a.txNonce !== null && tx.nonce === a.txNonce; // wallet replacement of the known hash
+      else
+        linked =
+          sender &&
+          same(tx.to, a.contract) &&
+          tx.input.toLowerCase() === a.data.toLowerCase() &&
+          tx.value === a.value &&
+          a.startNonce !== null &&
+          tx.nonce >= a.startNonce &&
+          !!r &&
+          r.blockNumber > a.startBlock;
+      if (!linked || !r) {
+        const why = !linked
+          ? 'it is not provably the unresolved attempt (sender, nonce, calldata, value or timing do not match)'
+          : 'it is not mined yet';
+        if (current(ticket))
+          setMessage(`${seen} It does not settle the unresolved attempt: ${why}. The attempt stays unresolved.`);
+        return;
+      }
+      settle(a, tx, r, ticket);
+      setRecoverHash('');
+    });
+  }
+  async function recheckAttemptInline(a: Attempt, ticket: number) {
+    const r = await readReceipt(a.hash!);
+    if (!r) {
+      if (current(ticket)) setMessage(`No receipt for ${a.hash} yet. It stays unresolved.`);
+      return;
+    }
+    const tx = await readTx(a.hash!);
+    if (!tx) throw new Error('The receipt exists but the transaction could not be read. It stays unresolved.');
+    settle(a, tx, r, ticket);
   }
   const readOnly = !t;
   return (
@@ -541,23 +655,14 @@ export default function Workspace() {
             </dl>
             <p className="muted">{attempt.note}</p>
             <div className="actions">
-              {attempt.hash && attempt.phase !== 'confirmed' && attempt.phase !== 'reverted' && (
-                <button className="secondary" disabled={!!busy} onClick={() => recheck()}>
+              {attempt.hash && unresolved(attempt) && (
+                <button className="secondary" disabled={!!busy} onClick={() => recheckAttempt()}>
                   Recheck this hash (read-only)
                 </button>
               )}
-              {(attempt.phase === 'confirmed' || attempt.phase === 'reverted') && (
+              {!unresolved(attempt) && (
                 <button className="secondary" disabled={!!busy} onClick={() => setAttempt(null)}>
                   Dismiss
-                </button>
-              )}
-              {attempt.phase === 'unknown' && (
-                <button
-                  className="secondary"
-                  disabled={!!busy}
-                  onClick={() => (confirmRelease ? setAttempt(null) : setConfirmRelease(true))}
-                >
-                  {confirmRelease ? 'Confirm: my wallet shows nothing was sent' : 'My wallet shows nothing was sent'}
                 </button>
               )}
             </div>
@@ -568,7 +673,7 @@ export default function Workspace() {
             <summary>Recheck a transaction by hash</summary>
             <p className="muted">
               Read-only. Use the hash from your wallet activity, for example after a reload or a lost response. Nothing
-              is signed or sent.
+              is signed or sent. It settles an unresolved attempt only when the transaction is provably that attempt.
             </p>
             <label>
               Transaction hash
@@ -579,8 +684,8 @@ export default function Workspace() {
                 disabled={!!busy}
               />
             </label>
-            <button className="secondary" disabled={!!busy || !recoverHash.trim()} onClick={() => recheck()}>
-              Recheck hash
+            <button className="secondary" disabled={!!busy || !recoverHash.trim()} onClick={() => lookup()}>
+              Check hash
             </button>
           </details>
         )}
