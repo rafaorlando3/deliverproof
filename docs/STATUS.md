@@ -78,9 +78,23 @@
 - Browser preflight currently uses client.call; cloud UI acceptance must also check
   named revert presentation. ABI parity alone does not prove friendly UI errors.
 
+## M2d deployment-recovery increment — written, pending cloud acceptance
+
+- Static review found that candidate-only guarding allowed an operator to rerun
+  deploy after a submitted transaction timed out, because no candidate existed yet.
+- Before any possible send, the utility now reserves a durable, exclusive public
+  attempt journal with sender/nonce/code context. Existing intent blocks new sends,
+  including prepared intent after an interrupted/unknown result. No secret or signed
+  transaction is stored; the guard is limited to this checkout and preserved files.
+- Explicit recovery only reads the existing transaction and validates its original
+  context before writing a candidate. It does not instantiate a signer or wallet.
+- Seventeen journal/CLI regression cases written using a temporary filesystem and
+  injected provider. None run here; actual cloud EVM rehearsal is still requested.
+- No contract, wallet UI, dependency versions or deployment authorization changed.
+
 ## Required next
 
-1. Claude cloud validation of M2b/M2c, updated lifecycle/ABI tests, reviewed
+1. Claude cloud validation of M2b/M2c/M2d, updated lifecycle/ABI tests, reviewed
    lockfile and fresh npm ci, frontend lint/types/build and desktop/mobile rehearsal.
 2. Official CLI local-template transformation plus clean generated build in cloud.
 3. Actual Hedera testnet and public IPFS path after specific account/faucet/pinning
@@ -90,4 +104,4 @@
 5. Competition eligibility, fresh competitor check, video and submission authorization.
 
 No public repo, deployment, paid service, production money or competition submission.
-Cloud logs support M1 and the reviewed M2a boundary, not frontend/M2c or competition readiness.
+Cloud logs support M1 and the reviewed M2a boundary, not frontend/M2c/M2d or competition readiness.

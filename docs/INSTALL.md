@@ -47,7 +47,11 @@ Use unlocked loopback accounts for the rehearsal, never a personal wallet.
 
 The deployment utility writes only a **candidate** public manifest after checking
 the canonical successful receipt and the compiled runtime hash. It refuses a
-pre-existing candidate/configured deployment instead of silently deploying again.
+pre-existing candidate/configured deployment and a prior attempt journal instead
+of silently deploying again. Before its first possible transmission it exclusively
+creates and flushes `deployment.attempt.jsonl`: only chain, sender, reserved nonce,
+expected CREATE address and compiled-code hashes. The public transaction hash is
+appended when available. No key or signed transaction is stored.
 Review `packages/nextjs/lib/deployment.candidate.json`, verify the source/artifact,
 then copy its public contents to `packages/nextjs/lib/deployment.json` in the
 cloud rehearsal checkout. Rebuild/restart the UI after installing the manifest.
@@ -69,12 +73,50 @@ No key is passed to or embedded in the frontend. Clear the runner environment
 afterward. The owner reviews and installs the resulting public candidate manifest.
 
 A submitted hash is not a completed deployment. An interrupted/failed wait must
-be investigated by its public transaction hash before any retry. Acceptance
+be investigated using its durable public attempt journal, account/nonce and hash.
+A second deploy invocation is refused even if the first wait failed or the process
+died before the public hash was returned. Do not delete the journal to bypass this
+block. Use the read-only recovery mode below; it never signs or broadcasts. Acceptance
 requires actual testnet proof of exact funding, approval-credit, withdrawal and
 refund, including tinybar (Solidity) versus 18-decimal RPC value. A local EVM
 pass cannot close this gate. Gateway/RPC availability and historical block reads
 must be checked on the real selected provider; the verifier fails inconclusively
 when history is incomplete or unavailable.
+
+## Recovery after a lost deployment response (cloud only)
+
+Preserve the public journal in the same checkout along with its compiled artifact.
+These commands perform only RPC reads and write a candidate after validation:
+
+```sh
+# From packages/hardhat, for the isolated cloud-local rehearsal:
+node scripts/deploy.cjs --recover-local
+# For a previously authorized testnet deployment, using its public journal:
+node scripts/deploy.cjs --recover-testnet
+```
+
+Recovery needs no private key and does not instantiate a signer. If the journal
+already contains a transaction hash, that exact hash is used. If transmission
+may have happened but no hash was returned/recorded, independently locate the
+transaction by the recorded sender and nonce, and supply its **public** hash via
+`DELIVERPROOF_RECOVERY_TX`. A supplied hash cannot replace one already recorded.
+Missing/torn journal, unknown transaction or inconsistent evidence remains blocked.
+A prepared journal is not proof that a transaction was submitted or that nothing
+was submitted. Absence at one RPC is not permission to deploy again.
+
+Acceptance compares chain, sender, nonce, creation target, zero attached value,
+creation-code hash, predicted address, canonical successful receipt and deployed
+runtime against the original intent and local compiled artifact. It never accepts
+an arbitrary successful transaction merely because the runtime looks similar.
+The candidate still needs operator review before enabling the UI.
+
+This is a **single-checkout** guard, not a distributed deployment coordinator. Keep
+the journal outside disposable build cleanup and preserve it before transferring
+runners; never start another deployment from a fresh checkout while the previous
+attempt is unresolved. Don't run deployment concurrently with another transaction
+from the same account. In the ephemeral cloud test only, reset the entire isolated
+chain/checkout between unrelated fixtures. Real testnet recovery, address-format
+behavior and persistent-runner storage are still acceptance gates, not proven here.
 
 ## Workflow and file availability
 

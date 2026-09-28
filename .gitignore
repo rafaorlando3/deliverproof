@@ -11,3 +11,4 @@ coverage/
 *.bundle
 .DS_Store
 packages/nextjs/lib/deployment.candidate.json
+packages/nextjs/lib/deployment.attempt.jsonl
