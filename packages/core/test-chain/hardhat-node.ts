@@ -17,15 +17,21 @@ export function artifact(name = 'DeliverProof') {
 
 async function freePort(): Promise<number> {
   return new Promise((ok, fail) => {
-    const s = createServer(); s.once('error', fail);
-    s.listen(0, '127.0.0.1', () => { const p = (s.address() as { port: number }).port; s.close(() => ok(p)); });
+    const s = createServer();
+    s.once('error', fail);
+    s.listen(0, '127.0.0.1', () => {
+      const p = (s.address() as { port: number }).port;
+      s.close(() => ok(p));
+    });
   });
 }
 
 export async function startNode(): Promise<{ url: string; stop: () => Promise<void> }> {
   const port = await freePort();
-  const child: ChildProcess = spawn(bin, ['node', '--hostname', '127.0.0.1', '--port', String(port)],
-    { cwd: hardhatDir, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child: ChildProcess = spawn(bin, ['node', '--hostname', '127.0.0.1', '--port', String(port)], {
+    cwd: hardhatDir,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   // Hardhat prints development private keys. Never include its output in an error or log.
   // Drain both pipes without retaining output after the readiness marker.
   child.on('error', () => {}); // Startup/stop handlers report sanitized errors; never leave an unhandled event.
@@ -33,10 +39,18 @@ export async function startNode(): Promise<{ url: string; stop: () => Promise<vo
     if (!child.pid || child.exitCode !== null || child.signalCode !== null) return;
     await new Promise<void>((ok, fail) => {
       let force: ReturnType<typeof setTimeout> | undefined;
-      const finish = () => { clearTimeout(grace); clearTimeout(force); child.off('exit', finish); ok(); };
+      const finish = () => {
+        clearTimeout(grace);
+        clearTimeout(force);
+        child.off('exit', finish);
+        ok();
+      };
       const grace = setTimeout(() => {
         child.kill('SIGKILL');
-        force = setTimeout(() => { child.off('exit', finish); fail(new Error('hardhat node did not terminate')); }, 3_000);
+        force = setTimeout(() => {
+          child.off('exit', finish);
+          fail(new Error('hardhat node did not terminate'));
+        }, 3_000);
       }, 3_000);
       child.once('exit', finish);
       child.kill('SIGTERM');
@@ -44,12 +58,17 @@ export async function startNode(): Promise<{ url: string; stop: () => Promise<vo
   };
   try {
     await new Promise<void>((ok, fail) => {
-      let prefix = '', settled = false;
+      let prefix = '',
+        settled = false;
       const done = (error?: Error) => {
         if (settled) return;
-        settled = true; prefix = ''; clearTimeout(timer);
-        child.off('error', failed); child.off('exit', exited);
-        if (error) fail(error); else ok();
+        settled = true;
+        prefix = '';
+        clearTimeout(timer);
+        child.off('error', failed);
+        child.off('exit', exited);
+        if (error) fail(error);
+        else ok();
       };
       const failed = () => done(new Error('hardhat node could not start'));
       const exited = () => done(new Error('hardhat node exited before readiness'));
@@ -60,8 +79,10 @@ export async function startNode(): Promise<{ url: string; stop: () => Promise<vo
         if (text.includes('Started HTTP')) done();
         else prefix = text.slice(-32);
       };
-      child.stdout!.on('data', on); child.stderr!.on('data', on);
-      child.once('error', failed); child.once('exit', exited);
+      child.stdout!.on('data', on);
+      child.stderr!.on('data', on);
+      child.once('error', failed);
+      child.once('exit', exited);
     });
   } catch (e) {
     await stop();

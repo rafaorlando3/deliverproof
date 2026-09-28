@@ -10,7 +10,12 @@ export type ContentResult =
   | { status: 'mismatch'; code: string }
   | { status: 'inconclusive'; code: string };
 class EvidenceError extends Error {
-  constructor(readonly status: 'mismatch' | 'inconclusive', readonly code: string) { super(code); }
+  constructor(
+    readonly status: 'mismatch' | 'inconclusive',
+    readonly code: string,
+  ) {
+    super(code);
+  }
 }
 const equal = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((v, i) => v === b[i]);
 
@@ -21,9 +26,13 @@ export async function verifyCar(car: Uint8Array, delivery: Delivery, expectedCom
     return { status: 'mismatch', code: 'invalid_commitment' };
   }
   let commitment: Hex;
-  try { commitment = deliveryCommitment(delivery); }
-  catch { return { status: 'mismatch', code: 'invalid_delivery_metadata' }; }
-  if (commitment.toLowerCase() !== expectedCommitment.toLowerCase()) return { status: 'mismatch', code: 'commitment_mismatch' };
+  try {
+    commitment = deliveryCommitment(delivery);
+  } catch {
+    return { status: 'mismatch', code: 'invalid_delivery_metadata' };
+  }
+  if (commitment.toLowerCase() !== expectedCommitment.toLowerCase())
+    return { status: 'mismatch', code: 'commitment_mismatch' };
   if (car.byteLength > MAX_CAR_BYTES) return { status: 'inconclusive', code: 'car_limit' };
   try {
     const root = CID.parse(delivery.cid);
@@ -41,7 +50,8 @@ export async function verifyCar(car: Uint8Array, delivery: Delivery, expectedCom
       if (cid.multihash.code !== 0x12 || cid.multihash.size !== 32 || ![0x55, 0x70].includes(cid.code)) {
         throw new EvidenceError('inconclusive', 'unsupported_block');
       }
-      if (!equal((await sha256.digest(bytes)).bytes, cid.multihash.bytes)) throw new EvidenceError('mismatch', 'block_hash_mismatch');
+      if (!equal((await sha256.digest(bytes)).bytes, cid.multihash.bytes))
+        throw new EvidenceError('mismatch', 'block_hash_mismatch');
       blocks.set(cid.toV1().toString(), bytes);
     }
     let reads = 0;
@@ -51,7 +61,7 @@ export async function verifyCar(car: Uint8Array, delivery: Delivery, expectedCom
         const bytes = blocks.get(cid.toV1().toString());
         if (!bytes) throw new EvidenceError('inconclusive', 'missing_block');
         yield bytes;
-      }
+      },
     };
     const signal = AbortSignal.timeout(5000);
     const entry = await exporter(root, store, { offline: true, signal });
@@ -66,7 +76,8 @@ export async function verifyCar(car: Uint8Array, delivery: Delivery, expectedCom
       if (offset + chunk.length > result.length || offset + chunk.length > MAX_FILE_BYTES) {
         return { status: 'mismatch', code: 'file_size_mismatch' };
       }
-      result.set(chunk, offset); offset += chunk.length;
+      result.set(chunk, offset);
+      offset += chunk.length;
     }
     if (offset !== result.length) return { status: 'mismatch', code: 'file_size_mismatch' };
     if (bytesToHex((await sha256.digest(result)).digest).toLowerCase() !== delivery.fileSha256.toLowerCase()) {
@@ -84,31 +95,55 @@ export type Gateway = 'https://trustless-gateway.link' | 'https://ipfs.io';
 const GATEWAYS: readonly string[] = ['https://trustless-gateway.link', 'https://ipfs.io'];
 
 /** Bounded trustless gateway fetch. No credentials, arbitrary URLs or HTTP redirects. */
-export async function fetchAndVerify(delivery: Delivery, expectedCommitment: Hex,
-  gateway: Gateway = 'https://trustless-gateway.link', fetcher: typeof fetch = fetch): Promise<ContentResult> {
-  try { deliveryCommitment(delivery); } catch { return { status: 'mismatch', code: 'invalid_delivery_metadata' }; }
+export async function fetchAndVerify(
+  delivery: Delivery,
+  expectedCommitment: Hex,
+  gateway: Gateway = 'https://trustless-gateway.link',
+  fetcher: typeof fetch = fetch,
+): Promise<ContentResult> {
+  try {
+    deliveryCommitment(delivery);
+  } catch {
+    return { status: 'mismatch', code: 'invalid_delivery_metadata' };
+  }
   if (!GATEWAYS.includes(gateway)) return { status: 'inconclusive', code: 'unsupported_gateway' };
   try {
     const response = await fetcher(`${gateway}/ipfs/${delivery.cid}?format=car&dag-scope=all`, {
       headers: { Accept: 'application/vnd.ipld.car; version=1' },
-      credentials: 'omit', redirect: 'error', signal: AbortSignal.timeout(15000)
+      credentials: 'omit',
+      redirect: 'error',
+      signal: AbortSignal.timeout(15000),
     });
     if (!response.ok || !response.body) return { status: 'inconclusive', code: 'gateway_unavailable' };
     if (Number(response.headers.get('content-length')) > MAX_CAR_BYTES) {
-      await response.body.cancel(); return { status: 'inconclusive', code: 'car_limit' };
+      await response.body.cancel();
+      return { status: 'inconclusive', code: 'car_limit' };
     }
     const reader = response.body.getReader();
-    const chunks: Uint8Array[] = []; let length = 0;
+    const chunks: Uint8Array[] = [];
+    let length = 0;
     try {
       while (true) {
-        const item = await reader.read(); if (item.done) break;
+        const item = await reader.read();
+        if (item.done) break;
         length += item.value.length;
-        if (length > MAX_CAR_BYTES) { await reader.cancel(); return { status: 'inconclusive', code: 'car_limit' }; }
+        if (length > MAX_CAR_BYTES) {
+          await reader.cancel();
+          return { status: 'inconclusive', code: 'car_limit' };
+        }
         chunks.push(item.value);
       }
-    } finally { reader.releaseLock(); }
-    const car = new Uint8Array(length); let offset = 0;
-    for (const chunk of chunks) { car.set(chunk, offset); offset += chunk.length; }
+    } finally {
+      reader.releaseLock();
+    }
+    const car = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) {
+      car.set(chunk, offset);
+      offset += chunk.length;
+    }
     return await verifyCar(car, delivery, expectedCommitment);
-  } catch { return { status: 'inconclusive', code: 'gateway_unavailable' }; }
+  } catch {
+    return { status: 'inconclusive', code: 'gateway_unavailable' };
+  }
 }

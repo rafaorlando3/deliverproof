@@ -26,6 +26,11 @@
     "next:check": "npm run check-types -w @sh/nextjs",
     "next:lint": "npm run lint -w @sh/nextjs",
     "next:start": "npm run start -w @sh/nextjs",
-    "chain:test": "npm run hardhat:compile && npm run typecheck:chain -w @deliverproof/core && npm run test:chain -w @deliverproof/core"
+    "chain:test": "npm run hardhat:compile && npm run typecheck:chain -w @deliverproof/core && npm run test:chain -w @deliverproof/core",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "3.9.9"
   }
 }

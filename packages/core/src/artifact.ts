@@ -10,10 +10,19 @@ export async function prepareArtifact(bytes: Uint8Array) {
   const digest = await sha256.digest(bytes);
   const cid = CID.createV1(0x55, digest);
   const { writer, out } = CarWriter.create([cid]);
-  const collect = (async () => { const chunks: Uint8Array[] = []; for await (const c of out) chunks.push(c); return chunks; })();
-  await writer.put({ cid, bytes }); await writer.close();
+  const collect = (async () => {
+    const chunks: Uint8Array[] = [];
+    for await (const c of out) chunks.push(c);
+    return chunks;
+  })();
+  await writer.put({ cid, bytes });
+  await writer.close();
   const chunks = await collect;
-  const car = new Uint8Array(chunks.reduce((n,c) => n+c.length,0)); let offset=0;
-  for (const c of chunks) { car.set(c,offset); offset+=c.length; }
-  return { cid:cid.toString(), fileSha256:bytesToHex(digest.digest), fileSize:BigInt(bytes.length), car };
+  const car = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  let offset = 0;
+  for (const c of chunks) {
+    car.set(c, offset);
+    offset += c.length;
+  }
+  return { cid: cid.toString(), fileSha256: bytesToHex(digest.digest), fileSize: BigInt(bytes.length), car };
 }
