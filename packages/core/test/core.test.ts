@@ -4,7 +4,6 @@ import { sha256 } from 'multiformats/hashes/sha2';
 import { CarWriter } from '@ipld/car';
 import { importer } from 'ipfs-unixfs-importer';
 import { fixedSize } from 'ipfs-unixfs-importer/chunker';
-import { MemoryBlockstore } from 'blockstore-core/memory';
 import { bytesToHex, type Hex } from 'viem';
 import { deliveryCommitment, rpcValueForTinybars, MAX_CAR_BYTES, type Delivery } from '../src/delivery.js';
 import { verifyCar, fetchAndVerify } from '../src/content.js';
@@ -32,23 +31,37 @@ async function fixture() {
   return {bytes,cid,delivery,car:await archive(cid,[{cid,bytes}]),commitment:deliveryCommitment(delivery)};
 }
 
+/** Blockstore mínimo que guarda o CID exatamente como o importer o gravou (codec incluso). */
+function recordingStore() {
+  const blocks: {cid:CID;bytes:Uint8Array}[]=[];
+  const byKey=new Map<string,Uint8Array>();
+  async function collect(v: any): Promise<Uint8Array> {
+    if (v instanceof Uint8Array) return v;
+    const chunks:Uint8Array[]=[];let size=0;for await(const b of v){chunks.push(b);size+=b.length;}
+    const out=new Uint8Array(size);let o=0;for(const b of chunks){out.set(b,o);o+=b.length;}return out;
+  }
+  return {
+    blocks,
+    async put(cid: CID, v: any) { const bytes=await collect(v); if(!byKey.has(cid.toString())){byKey.set(cid.toString(),bytes);blocks.push({cid,bytes});} return cid; },
+    async *get(cid: CID) { const b=byKey.get(cid.toString()); if(!b) throw new Error('not found'); yield b; },
+    async has(cid: CID) { return byKey.has(cid.toString()); },
+  };
+}
+
 describe('content proof',()=>{
   it('verifies a raw block without trusting the gateway',async()=>{
     const f=await fixture(); const result=await verifyCar(f.car,f.delivery,f.commitment);
     expect(result.status).toBe('verified'); if(result.status==='verified') expect(result.bytes).toEqual(f.bytes);
   });
   it('reconstructs and verifies a multi-block UnixFS DAG, not a CID-as-file-hash shortcut',async()=>{
-    const f=await fixture(); const store=new MemoryBlockstore(); let root: CID | undefined;
-    for await(const entry of importer([{content:f.bytes}],store,{cidVersion:1,rawLeaves:true,chunker:fixedSize({chunkSize:8})})) root=entry.cid;
+    // Claude (revisão M1): MemoryBlockstore.getAll() devolve toda chave com o codec raw (0x55), inclusive
+    // a raiz dag-pb, e o CAR montado a partir dele não tinha o bloco dag-pb. O verificador acertava ao dizer
+    // "inconclusive"; o defeito era do fixture. Aqui os blocos são gravados com o CID que o importer usou.
+    const f=await fixture(); const store=recordingStore(); let root: CID | undefined;
+    for await(const entry of importer([{content:f.bytes}],store as any,{cidVersion:1,rawLeaves:true,chunker:fixedSize({chunkSize:8})})) root=entry.cid;
     expect(root).toBeDefined();
-    const blocks: {cid:CID;bytes:Uint8Array}[]=[];
-    for await(const entry of store.getAll()) {
-      const chunks:Uint8Array[]=[];let size=0;
-      for await(const b of entry.bytes){chunks.push(b);size+=b.length;}
-      const bytes=new Uint8Array(size);let offset=0;
-      for(const b of chunks){bytes.set(b,offset);offset+=b.length;}
-      blocks.push({cid:entry.cid,bytes});
-    }
+    const blocks=store.blocks;
+    expect(blocks.some(b=>b.cid.code===0x70)).toBe(true);
     expect(blocks.length).toBeGreaterThan(1);
     const d={...f.delivery,cid:root!.toString()};
     expect(root!.multihash.digest).not.toEqual((await sha256.digest(f.bytes)).digest);
@@ -56,6 +69,13 @@ describe('content proof',()=>{
     expect(result.status).toBe('verified');if(result.status==='verified')expect(result.bytes).toEqual(f.bytes);
     const missing=await verifyCar(await archive(root!,blocks.filter(b=>b.cid.equals(root!))),d,deliveryCommitment(d));
     expect(missing.status).toBe('inconclusive');
+  });
+  it('CAR whose dag-pb root block is labeled raw is inconclusive (missing_block), never verified (Claude, revisão M1)',async()=>{
+    const f=await fixture(); const store=recordingStore(); let root: CID | undefined;
+    for await(const entry of importer([{content:f.bytes}],store as any,{cidVersion:1,rawLeaves:true,chunker:fixedSize({chunkSize:8})})) root=entry.cid;
+    const relabeled=store.blocks.map(b=>({cid:CID.createV1(0x55,b.cid.multihash),bytes:b.bytes}));
+    const d={...f.delivery,cid:root!.toString()};
+    expect(await verifyCar(await archive(root!,relabeled),d,deliveryCommitment(d))).toEqual({status:'inconclusive',code:'missing_block'});
   });
   it('detects a gateway block whose bytes do not match its claimed CID',async()=>{
     const f=await fixture();const bad=f.bytes.slice();bad[0]^=1;
