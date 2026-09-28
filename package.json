@@ -1,0 +1,21 @@
+{
+  "name": "deliverproof",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.14.0 <23 || >=24.0.0 <25"
+  },
+  "packageManager": "npm@10.9.2",
+  "workspaces": [
+    "packages/core",
+    "packages/hardhat"
+  ],
+  "scripts": {
+    "check": "npm run typecheck -w @deliverproof/core",
+    "test": "npm run test -w @deliverproof/core && npm run test -w @sh/hardhat",
+    "core:test": "npm run test -w @deliverproof/core",
+    "hardhat:test": "npm run test -w @sh/hardhat",
+    "hardhat:compile": "npm run compile -w @sh/hardhat"
+  }
+}
