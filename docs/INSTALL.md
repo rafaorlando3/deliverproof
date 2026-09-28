@@ -6,11 +6,11 @@ No installation, test or frontend command deploys, signs or pins anything.
 
 ## Reproducible installation gate
 
-Use Node 22.22.2 and npm 10.9.7. The existing lockfile is the accepted **M1**
-lockfile. This M2 source adds the frontend; a clean `npm ci` is **not yet ready**.
-The cloud reviewer first records the untouched source SHA, generates the M2
-lockfile using `npm install --ignore-scripts`, reviews the lock delta and returns
-it as a patch. In a second clean checkout of that corrected commit, run:
+Use Node 22.22.2 and npm@10.9.7. The reviewed **M2** lockfile is included.
+Clean installation, lint/types/build and the cloud-local workflow were recorded
+for 42ee818; this checkout also contains later corrections not covered by that
+result. Record its exact SHA and repeat these independent checks in a clean cloud
+checkout. Do not regenerate the lock merely to hide an installation failure:
 
 ```sh
 npm ci --ignore-scripts
@@ -20,9 +20,11 @@ npm run hardhat:test
 npm run next:lint
 npm run next:check
 npm run next:build
+npm run next:check
+npm run chain:test
 ```
 
-Run each independently and preserve its exit status. The aggregate `npm test`
+Run each independently and preserve its exit status. The aggregate `npm run test`
 uses fail-fast behavior; it is not sufficient evidence if core fails. Run the
 frontend type check again after Next has generated its route declarations.
 `next build` must produce a complete build, not merely a started process.
@@ -149,15 +151,41 @@ it cannot change the trusted deployment and is not proof of future availability.
 
 ## External Scaffold-HBAR template gate
 
-`template.json` declares Next.js + Hardhat + npm and the custom core workspace.
+`template.json` declares Next.js, Hardhat, the `npm` package manager and the custom core workspace.
 The official CLI's local template override (`CREATE_SCAFFOLD_HBAR_TEMPLATE_DIR`)
 can exercise copy/normalization in the cloud before a public repository exists.
 Record CLI version/commit and exact command, inspect generated package scripts,
 then repeat the clean locked build in the generated directory. Do not assume
 direct checkout success proves the scaffold transformation worked.
 
-The eventual public install is `npm create scaffold-hbar@<verified-version> --`
+The eventual public install uses `npx create-scaffold-hbar@<verified-version>`
 with the official external repository option, frontend Next.js, Hardhat, npm,
 **testnet**, and no automatic skills installation. The exact public command and
 repository remain pending publication authorization and a real clean install;
 there is intentionally no invented working repository URL here.
+
+
+### Observed CLI 0.4.0 differences
+
+The official CLI snapshot 5732f5e was exercised with a local template override in
+the cloud on the M2b review. Normal generation installs with
+`npm install --legacy-peer-deps`; that is distinct from the clean `npm ci` check
+after generation. Supplied evidence reports only TypeScript/zod development-flag
+changes in the generated lock, followed by successful locked checks and build.
+Repeat that comparison for the final combined template.
+
+The CLI sets `packageManager` to npm@10.0.0 in generated manifests; this metadata
+is not evidence that npm@10.0.0 ran. The review actually used npm@10.9.7. Record
+actual Node/package-manager versions, keep the source pin, and do not claim the
+generated metadata pins the validated runtime. This upstream normalization is
+not patched here. A differing actual runtime needs its own validation.
+
+The CLI also rewrites package-manager words in Markdown. Documentation uses
+version tokens such as npm@10.9.7 and explicit `npm run test` commands to survive
+that transformation. Re-read generated instructions; source text alone is not
+proof of correct generated documentation.
+
+Normal generation currently warns because the root `format` script is absent.
+A real formatter and its reviewed lock delta remain requested from the cloud
+reviewer; a no-op script would not close this gate. No blanket formatting of
+review artifacts, immutable bundles or evidence is allowed.

@@ -2,9 +2,11 @@
 
 Verify the delivered bytes. Approve that exact version. Withdraw separately.
 
-**M2 source written; cloud validation pending. Not deployed or submitted.**
-The earlier M1 cloud review recorded 17 core and 22 contract tests passing on
-`6bf43b5`. That result does not cover this new frontend/network increment.
+**M2b cloud rehearsal reviewed; combined M2 corrections pending validation.**
+No public deployment or submission. On `42ee818`, the supplied cloud evidence
+records 32 core, 22 contract and 41 chain checks, plus a 56-check browser workflow.
+The browser used a cloud-local EVM and simulated IPFS retrieval. Those results
+do not validate the combined reader, deployment-recovery and UI-01 corrections.
 See [current status and remaining gates](docs/STATUS.md).
 
 DeliverProof is a small, original Scaffold-HBAR template for one buyer, one
@@ -42,9 +44,11 @@ operator authorization. Files must be public synthetic data, never customer data
 [Cloud M2 acceptance checklist](docs/VALIDATION-M2.md) ·
 [Protocol](docs/PROTOCOL.md)
 
-Node 22.22.2/npm 10.9.7 was the M1 review environment. Minimum Node 22.18;
-Node 24 is allowed but untested. The existing lockfile covers M1; the cloud reviewer
-must generate and review the M2 dependency lock, then prove a clean npm ci/build.
+Node 22.22.2/npm@10.9.7 was the M2b cloud review environment. Minimum Node 22.18;
+Node 24 is allowed but untested. The reviewed M2 lockfile is included. Repeat clean
+`npm ci` and all checks on the combined commit in the cloud before accepting it.
+The temporary ESLint 9 pin is an unsupported development-tool compatibility
+exception, documented in [status](docs/STATUS.md); it is not a supported baseline.
 Do not run the project, compiler, installer, server or tests on the owner's Mac.
 
 The `.candidate.json` deployment file contains only public provenance and must be
@@ -60,7 +64,7 @@ A canonical RPC observation is not a cryptographic light client or guarantee
 against future chain history changes. Local EVM tests do not prove Hedera's
 Solidity tinybar versus RPC weibar behavior. Mainnet is not supported.
 
-M2 still needs cloud validation, actual testnet/IPFS evidence, a public clean
+M2 still needs combined cloud validation, actual testnet/IPFS evidence, a public clean
 scaffold install, final eligibility checks and separately authorized publication
 and submission. No claim of competition readiness or prize is made.
 

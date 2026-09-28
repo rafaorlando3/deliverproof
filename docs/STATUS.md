@@ -8,7 +8,7 @@
 - Initial source f9cfe50: Claude reported type checking passed, core 15/16,
   contract 19/19. The failed UnixFS test constructed a CAR with the wrong codec;
   the verifier correctly rejected it as missing the requested root block.
-- Reviewed and integrated Claude commits through 6bf43b5: npm lockfile, corrected
+- Reviewed and integrated Claude commits through 6bf43b5: package lockfile, corrected
   recording fixture plus a negative regression test, three independent contract tests.
 - Supplied cloud logs on 6bf43b5: core 17/17 and contract 22/22; type check passed.
   Six cross-language commitment cases matched Solidity and viem. A fixed-seed
@@ -21,7 +21,7 @@
 
 ## Decisions from review
 
-1. Use validated Node 22.22.2/npm 10.9.7. Minimum supported Node 22.18 for direct
+1. Use validated Node 22.22.2/npm@10.9.7. Minimum supported Node 22.18 for direct
    TS imports; Node 24 allowed but not exercised. Lockfile root metadata agrees.
 2. Keep inclusive funding/submission boundary in the documented protocol. UI must
    expose remaining chain time and require usable margin, without promising inclusion.
@@ -29,7 +29,7 @@
    deadline the buyer can refund even a submitted delivery. No dispute arbitration.
 4. tinybar/weibar behavior remains a Hedera testnet gate. Local EVM success does
    not prove deposit/withdraw conversion on chain 296.
-5. Cloud reviewer/CI must record core and contract runs independently. npm test
+5. Cloud reviewer/CI must record core and contract runs independently. npm run test
    keeps fail-fast behavior; its short-circuit is explicit, not a full-suite result.
 
 ## M2a independent review received (not testnet)
@@ -41,7 +41,7 @@
   conflict by keeping both the frontend scripts and chain:test. No local execution.
 - This is evidence for M2a, not for the subsequent frontend or M2c changes.
 
-## M2 source increment (frontend cloud validation pending)
+## M2 source increment and reviewed M2b cloud evidence
 
 - M2a commit 7f4c383: independent deployment/code/receipt/event/state verifier and
   13 written tests. Package delivered to Claude through X-0030. No execution here.
@@ -51,9 +51,12 @@
   confirmation, shared-terms hash, policy acknowledgement, verified-byte download,
   public observation export and invalidation on account/network/agreement changes.
 - The default deployment manifest remains null. No public contract or invented hash.
-- Root workspace/dependency metadata now includes the frontend. The existing M1
-  lockfile is intentionally preserved as historical input; **M2 npm ci is not ready
-  until the cloud reviewer generates and returns a reviewed lockfile**.
+- Root workspace/dependency metadata includes the frontend. The reviewed M2
+  lockfile from 42ee818 is now integrated: 446 to 823 package entries, 377 added,
+  none removed. Four existing dependency entries change only dev/devOptional
+  classification; versions/resolved/integrity of existing dependencies are unchanged.
+  The root workspace metadata also changes. Workspace links have no registry
+  integrity by design; new registry packages carry integrity metadata.
 - This frontend has not been run, rendered or built on the Mac. Source inspection
   and packaging do not prove compilation, layout quality or successful workflow.
 - The deploy utility writes a public candidate only after receipt/runtime checks;
@@ -92,11 +95,41 @@
   injected provider. None run here; actual cloud EVM rehearsal is still requested.
 - No contract, wallet UI, dependency versions or deployment authorization changed.
 
+## M2b acceptance boundary (C-0044)
+
+- Independently checked all 26 package hashes, Git bundle integrity, dependency
+  fields, source patches and supplied log totals. Six loose screenshots were
+  recompressed in transfer; original captures remain in the hashed archive.
+- Supplied clean cloud logs on **42ee818**: core 32/32, contract 22/22, chain/ABI
+  41/41; types, lint and full Next build passed. Lint retains one cleanup-ref
+  warning; zero lint errors does not mean zero warnings.
+- Browser rehearsal records 56/56 checks: real ephemeral cloud-local EVM,
+  approval/withdrawal and both refund paths. IPFS retrieval was simulated only in
+  the harness. Desktop/375px captures support layout observations, not testnet.
+- Normal official CLI 0.4.0 generation and a clean locked build of its output
+  passed with the known format warning and metadata/text transformations recorded
+  in INSTALL.md. Local-template override is not public external-template proof.
+- Integrated lock, lint dependency compatibility, Next Link/config, generated
+  declarations and seven independent chain regressions. The existing M2a suite
+  was not duplicated. Rejected estimated fixed-block pagination in favor of the
+  existing timestamp-bounded M2c implementation. Combined result is untested.
+- **ESLint 9.39.5 is an explicit temporary unsupported development-tool exception.**
+  ESLint 10.11.0 crashed eslint-plugin-react 7.37.5 in the supplied cloud run.
+  Keep effective React lint rules while preparing a separately validated
+  compatible supported configuration. ESLint 9 reached EOL on 2026-08-06;
+  official source checked 2026-09-28: https://eslint.org/version-support/ .
+  This exception does not authorize paid support or imply production readiness.
+- **UI-01 is still open**: a send/receipt timeout or context change can lose the
+  original transaction hash and allow another create. Claude is preparing a
+  red/green reproduction and separate fix. The 56-check rehearsal did not close it.
+
 ## Required next
 
-1. Claude cloud validation of M2b/M2c/M2d, updated lifecycle/ABI tests, reviewed
-   lockfile and fresh npm ci, frontend lint/types/build and desktop/mobile rehearsal.
-2. Official CLI local-template transformation plus clean generated build in cloud.
+1. Claude cloud validation of the combined M2c/M2d corrections and UI-01 fix:
+   untouched baseline, reviewed deltas, fresh locked installation, core/contract/
+   chain and frontend checks, actual crash/timeout/recovery and browser scenarios.
+2. Real format script with reviewed dependencies; repeat normal CLI generation,
+   inspect text/manifest/lock changes and repeat clean generated checks in cloud.
 3. Actual Hedera testnet and public IPFS path after specific account/faucet/pinning
    authorization; verify deposit/credit/withdraw/refund and tinybar/weibar behavior.
 4. Clean external-template installation from an authorized public repository;
@@ -104,4 +137,5 @@
 5. Competition eligibility, fresh competitor check, video and submission authorization.
 
 No public repo, deployment, paid service, production money or competition submission.
-Cloud logs support M1 and the reviewed M2a boundary, not frontend/M2c/M2d or competition readiness.
+Cloud logs support M1, reviewed M2a and the exact M2b boundary on 42ee818. They do
+not validate the combined corrections, real Hedera/IPFS or competition readiness.

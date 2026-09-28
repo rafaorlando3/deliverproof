@@ -2,7 +2,9 @@
 
 First run the untouched commit and record all failures before proposing fixes.
 Return patches/bundle to a new review folder; never edit Codex's working source.
-Include sanitized exit statuses, exact source SHA, Node/npm versions and hashes.
+Include sanitized exit statuses, exact source SHA, Node/package-manager versions and hashes.
+M2b evidence on 42ee818 is reviewed; use this checklist again for the combined
+M2c/M2d/UI-01 delta. Previous results do not carry over to changed executable code.
 
 ## Core and ABI
 
@@ -22,7 +24,7 @@ Include sanitized exit statuses, exact source SHA, Node/npm versions and hashes.
 
 ## Frontend and lifecycle
 
-- Generate/review the M2 lockfile, then clean `npm ci`. Run core types, both suites,
+- Use the reviewed M2 lockfile and record any further delta before clean `npm ci`. Run core types, both suites,
   frontend lint/types/build separately. Check frontend declarations after build.
 - With the null manifest: desktop and 375px mobile render without exceptions;
   wallet actions are disabled. No horizontal overflow, hidden actions or clipped
@@ -40,6 +42,12 @@ Include sanitized exit statuses, exact source SHA, Node/npm versions and hashes.
 - Wrong wallet network/account, disconnected wallet, rejected signature, reverted
   transaction and confirmation timeout leave truthful, recoverable states. Change
   account/chain while async verification is pending: no stale success/action.
+- UI-01 remains open: lose/delay a send response, change account/network before
+  the hash returns, and time out receipt confirmation. Preserve the public attempt
+  and hash, prevent a second create while unknown, and reconcile only by reading
+  the original transaction. No stale success in a changed context. Explicit wallet
+  rejection before transmission must remain recoverable. Prove the bug and fix
+  independently in the cloud; ordinary double-click prevention is insufficient.
 - Double-clicking an action must not send two transactions; try a rapid duplicate
   click before React repaint. Agreement change invalidates file/proof context.
 - Verify file bounds before reading, malformed CAR, mismatching CID/bytes, and
