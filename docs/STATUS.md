@@ -1,5 +1,15 @@
 # Status — 2026-09-28
 
+## Current acceptance — C-0049
+
+The seven reviewed commits through 6cb74c7 are now integrated. Executable source,
+configuration and lockfile are identical to cloud-validated candidate
+6cb74c70ca23c788148a6b2af80f6bd16be0d7e9; only this status document differs.
+Historical pending descriptions below are superseded by this acceptance and the
+C-0049 section. UI-01/UI-02/UI-03 review is closed within the simulated-wallet,
+cloud-local EVM scope. Hedera testnet, public IPFS and public distribution remain
+pending. No competition submission or public deployment has been made.
+
 ## M1 source and cloud review
 
 - Solidity agreement, exact funding, single submission, commitment-bound approval,
@@ -187,27 +197,47 @@
   with pending evidence clearly labelled; accounts, faucet, pinning, deployment
   and public repository publication remain outside this review action.
 
+## C-0049 candidate and relay evidence accepted
+
+- Codex checked 32/32 package hashes, the unchanged candidate delta, the new
+  harness and JSON/log totals. The identical external-call counterexample fails
+  on 5861c2b (UI-03 6/13) and passes on 6cb74c7 (13/13). The fixed UI makes one
+  original send, zero sends while looking up the external transaction and no
+  third creation; the separately counted fixture send is not a UI send.
+- The unchanged old UI-01/UI-02 expectations each fail 1/12 on the candidate,
+  as required by the corrected identity contract. After only those documented
+  expectation changes, UI-01 is 12/12, UI-02 is 11/11 and lifecycle is 56/56.
+  The conditional replacement-race path has an additional observed recovery
+  check in the old-expectation run on the same candidate; do not claim 12/12
+  for the final UI-02 run or sum these overlapping suites as unique cases.
+- Supplied clean-clone logs on 6cb74c7 record npm ci, core type checking,
+  frontend lint/types/build and formatting with exit 0, plus a clean tree.
+  One previously accepted lint warning remains. Unchanged core/contract/chain
+  behavior retains its earlier exact-commit evidence; those suites were not
+  newly run in this package. No executable project validation ran on the Mac.
+- UI attempts remain in memory only. Without the wallet-returned original hash,
+  a lookup remains an observation and cannot release the attempt. Reloading is
+  not proof that retrying is safe. Known-hash recovery and nonce-linked wallet
+  replacement retain the original hash and separate mined-result provenance.
+- Relay supplement: 3/3 hashes checked. The unsupported historical totalSupply
+  claim was explicitly withdrawn. Supplied results instead show full historical
+  balanceOf returns 0, 100000, 100000 and 300000 at four identified blocks, with
+  the two differences matching recorded Transfer values. A fixed-block getCode
+  comparison returns 8595 bytes, equal SHA256 and equal bytes for EVM/long-zero.
+  These resolve the two C-0048 evidence gaps for the recorded third-party sample;
+  they do not validate DeliverProof on Hedera or our own custom-error decoding.
+
 ## Required next
 
-1. Claude cloud reproduction of the identical external-call / hashless original
-   counterexample on 5861c2b, then validation of 6cb74c7. Preserve separate lookup
-   observations, unknown-attempt blocking, known-hash recovery and replacement
-   provenance. Return the exact final SHA with affected UI/type/lint/build/format
-   results; no need to repeat unaffected deployment/core suites solely for UI.
-2. Review the final returned UI delta and integrate only the accepted combined
-   commits. The independent 34-file formatting review of ac47adc is complete:
-   JSON values, CSS declarations and JS/TS punctuation/precedence/JSX changes
-   were reviewed; no behavioral change introduced by formatting was identified.
-   This is static review, not AST equivalence or new executable validation.
-   Report: ../revisoes/deliverproof/conferencia-format-codex-2026-09-28/.
-   Official CLI format/generation evidence exists on ac47adc; that local-template
-   evidence does not establish public external-template delivery.
-3. Actual Hedera testnet and public IPFS path after specific account/faucet/pinning
-   authorization; verify deposit/credit/withdraw/refund and tinybar/weibar behavior.
-4. Clean external-template installation from an authorized public repository;
-   do not substitute a local template test for that public distribution proof.
-5. Competition eligibility, fresh competitor check, video and submission authorization.
+1. Review and integrate Claude's separate five-minute evaluator guide, retaining
+   explicit placeholders until public repository, deployment and CID exist.
+2. Actual Hedera testnet and public IPFS path after applicable direct account,
+   faucet, pinning and deployment authorization. Verify our deployment receipt,
+   deposit/credit/withdraw/refund, tinybar/weibar conversion and custom errors.
+3. Clean external-template installation from an authorized public repository;
+   do not substitute the recorded local-template generation for public delivery.
+4. Competition eligibility, fresh competitor check, video and submission authorization.
 
 No public repo, deployment, paid service, production money or competition submission.
-Evidence belongs to the exact cloud commits recorded above. It does not validate
-6cb74c7, real Hedera/IPFS or competition readiness; integration is still pending.
+Cloud evidence applies to 6cb74c7 and its identical executable source now integrated;
+real Hedera/IPFS and competition readiness remain unverified.
