@@ -171,6 +171,22 @@
 - No project/test/compiler/installer/server/container was run on the Mac.
   The in-memory-only limitation persists; reload is not proof of safe resending.
 
+## C-0048 public relay preflight — limited evidence reviewed
+
+- Codex checked all seven entries listed in the supplied preflight SHA256SUMS
+  and read the scripts/output without executing them. The recorded sample
+  supports CREATE receipt/address shape, block-level log indexes, matching
+  receipt/block hashes, the tinybar conversion and the two getLogs limit errors.
+- Equal getCode lengths alone do not establish bytecode equality. The supplied
+  eth_call excerpt contains reverts, not the claimed differing historical
+  totalSupply values. Full targeted values/digests and block identifiers are
+  still needed to close those two preflight assertions; custom-error decoding
+  on our own deployment also remains unverified.
+- This evidence concerns third-party contracts at the recorded time, not a
+  DeliverProof deployment. A short evaluator guide may be prepared separately
+  with pending evidence clearly labelled; accounts, faucet, pinning, deployment
+  and public repository publication remain outside this review action.
+
 ## Required next
 
 1. Claude cloud reproduction of the identical external-call / hashless original
@@ -178,9 +194,14 @@
    observations, unknown-attempt blocking, known-hash recovery and replacement
    provenance. Return the exact final SHA with affected UI/type/lint/build/format
    results; no need to repeat unaffected deployment/core suites solely for UI.
-2. Finish review of the complete combined delta and mechanical formatting before
-   integration. Official CLI format/generation evidence exists on ac47adc; that
-   local-template evidence does not establish public external-template delivery.
+2. Review the final returned UI delta and integrate only the accepted combined
+   commits. The independent 34-file formatting review of ac47adc is complete:
+   JSON values, CSS declarations and JS/TS punctuation/precedence/JSX changes
+   were reviewed; no behavioral change introduced by formatting was identified.
+   This is static review, not AST equivalence or new executable validation.
+   Report: ../revisoes/deliverproof/conferencia-format-codex-2026-09-28/.
+   Official CLI format/generation evidence exists on ac47adc; that local-template
+   evidence does not establish public external-template delivery.
 3. Actual Hedera testnet and public IPFS path after specific account/faucet/pinning
    authorization; verify deposit/credit/withdraw/refund and tinybar/weibar behavior.
 4. Clean external-template installation from an authorized public repository;
