@@ -1,18 +1,26 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { createWalletClient, custom, encodeFunctionData, isAddress, keccak256, formatUnits, parseUnits, stringToHex, type Address, type Hex } from 'viem';
+import { createWalletClient, custom, decodeFunctionData, encodeFunctionData, isAddress, keccak256, formatUnits, parseUnits, stringToHex, type Address, type Hex } from 'viem';
 import { deliverProofAbi } from '@deliverproof/core/abi';
 import { prepareArtifact } from '@deliverproof/core/artifact';
 import { verifyCar, fetchAndVerify } from '@deliverproof/core/content';
 import { deliveryCommitment, rpcValueForTinybars, MAX_CAR_BYTES, type Delivery } from '@deliverproof/core/delivery';
 import { verifyAgreement, type NetworkResult } from '@deliverproof/core/network';
 import { deployment, clients, createdId, assertDeployment } from '../lib/chain';
+import { explainPreflight, isWalletRejection } from '../lib/errors';
 
 type Injected={request:(args:{method:string;params?:unknown[]})=>Promise<unknown>;on?:(name:string,fn:()=>void)=>void;removeListener?:(name:string,fn:()=>void)=>void};
 type Prepared=Awaited<ReturnType<typeof prepareArtifact>>;
 type Action='create'|'fund'|'submit'|'approve'|'refund'|'withdraw';
 type Proof={commitment:Hex;id:string;status:'verified'|'mismatch'|'inconclusive';message:string};
+/** Public record of one wallet transaction attempt, kept apart from the agreement shown on screen.
+ * It survives account/network changes so a transmitted hash is never lost. In-memory only: after a
+ * reload, recover the hash from the wallet's activity and recheck it read-only below. */
+type Attempt={action:Action;agreement:string;account:Address;chainId:number;hash:Hex|null;phase:'wallet'|'sent'|'unknown'|'confirmed'|'reverted';note:string};
+const unresolved=(a:Attempt|null)=>!!a&&(a.phase==='wallet'||a.phase==='sent'||a.phase==='unknown');
+const phaseLabel={wallet:'Waiting for your wallet',sent:'Submitted, not confirmed yet',unknown:'Unknown: do not send again',confirmed:'Confirmed',reverted:'Reverted: nothing changed'};
+const functionOf:Record<Action,string>={create:'createAgreement',fund:'fund',submit:'submit',approve:'approve',refund:'refund',withdraw:'withdraw'};
 const t=deployment();
 const connection=t?clients(t):null;
 const states=['Missing','Awaiting deposit','Funded','Delivery submitted','Approved · credit available','Refunded · buyer credit'];
@@ -39,6 +47,10 @@ export default function Workspace() {
   const [supplier,setSupplier]=useState(''),[amount,setAmount]=useState('0.1'),[terms,setTerms]=useState('Deliver one public synthetic report. Buyer reviews the bytes and explicitly approves before the review deadline.');
   const [deliveryMinutes,setDeliveryMinutes]=useState('60'),[reviewMinutes,setReviewMinutes]=useState('120');
   const epoch=useRef(0), mounted=useRef(true), taskLock=useRef(false);
+  const attemptRef=useRef<Attempt|null>(null);
+  const [attempt,setAttemptState]=useState<Attempt|null>(null),[recoverHash,setRecoverHash]=useState(''),[confirmRelease,setConfirmRelease]=useState(false);
+  const setAttempt=(value:Attempt|null)=>{attemptRef.current=value;setAttemptState(value);setConfirmRelease(false);};
+  const locked=unresolved(attempt);
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;epoch.current++;};},[]);
   useEffect(()=>{
     const p=(window as unknown as {ethereum?:Injected}).ethereum;
@@ -82,6 +94,7 @@ export default function Workspace() {
     if(current(ticket)){setVerifiedBytes(p.status==='verified'?p.bytes:null);setProof({id,commitment,status:p.status,message:p.code});setMessage(p.status==='verified'?'File bytes match. This does not establish quality, authorship or payment.':`File check ${p.status}: ${p.code}.`);}
   });}
   async function write(action:Action){await task(`Preparing ${action}`,async ticket=>{
+    if(unresolved(attemptRef.current))throw new Error('A previous transaction is still unresolved. Recheck it below before sending another.');
     if(!t||!connection||!account)throw new Error('Configure a verified deployment and connect a wallet first.');
     if(!policy)throw new Error('Read and acknowledge the testnet agreement policy.');
     const {chain,client,reader}=connection; const p=walletProvider();
@@ -124,16 +137,35 @@ export default function Workspace() {
       case 'refund':data=encodeFunctionData({abi:deliverProofAbi,functionName:'refund',args:[n]});break;
       case 'withdraw':data=encodeFunctionData({abi:deliverProofAbi,functionName:'withdraw',args:[n]});break;
     }
-    await client.call({account,to:t.address,data,value});
+    try { await client.call({account,to:t.address,data,value}); } catch(e) { throw new Error(explainPreflight(e)); }
     if(!current(ticket))throw new Error('Page context changed before wallet confirmation.');
     const wallet=createWalletClient({chain,transport:custom(p)});
+    const context={action,agreement:action==='create'?'new':id,account,chainId:t.chainId};
+    // Recorded before the wallet opens: from here on the result may be unknown, and a retry could duplicate it.
+    setAttempt({...context,hash:null,phase:'wallet',note:'Review the network, destination and amount in your wallet. Do not sign if they differ.'});
     setMessage('Review the network, destination and amount in your wallet. Do not sign if they differ.');
-    const tx=await wallet.sendTransaction({chain,account,to:t.address,data,value});
+    let tx:Hex;
+    try { tx=await wallet.sendTransaction({chain,account,to:t.address,data,value}); }
+    catch(e) {
+      if(isWalletRejection(e)){setAttempt(null);throw new Error('You rejected the request in your wallet. Nothing was sent.');}
+      setAttempt({...context,hash:null,phase:'unknown',note:'The wallet returned no transaction hash, so it may or may not have been sent. Find it in your wallet activity and recheck it below.'});
+      throw new Error('Sending did not complete and the result is unknown. Check your wallet activity before trying again.');
+    }
+    // Keep the hash even if the account, network or agreement changed meanwhile.
+    setAttempt({...context,hash:tx,phase:'sent',note:'Submitted. Waiting for confirmation.'});
+    if(current(ticket))setMessage(`Transaction submitted: ${tx}. It is not yet confirmed.`);
+    let r:Awaited<ReturnType<typeof client.waitForTransactionReceipt>>;
+    try { r=await client.waitForTransactionReceipt({hash:tx,timeout:60000,retryCount:0}); }
+    catch {
+      setAttempt({...context,hash:tx,phase:'unknown',note:'No confirmation within 60 seconds. It may still confirm. Recheck this hash before sending anything else.'});
+      throw new Error(`No confirmation within 60 seconds for ${tx}. It may still confirm: recheck it below and do not send again.`);
+    }
+    if(r.status!=='success'){
+      setAttempt({...context,hash:tx,phase:'reverted',note:'Included in a block but reverted. The agreement did not change.'});
+      throw new Error(`Transaction reverted: ${tx}. The agreement did not change.`);
+    }
+    setAttempt({...context,hash:tx,phase:'confirmed',note:'Confirmed receipt. The agreement check below is separate.'});
     if(!current(ticket))return;
-    setMessage(`Transaction submitted: ${tx}. It is not yet confirmed. Verify again if confirmation times out.`);
-    const r=await client.waitForTransactionReceipt({hash:tx,timeout:60000,retryCount:0});
-    if(!current(ticket))return;
-    if(r.status!=='success')throw new Error(`Transaction reverted: ${tx}`);
     const target=action==='create'?createdId(r.logs,t.address)?.toString():id;
     if(!target)throw new Error('Successful transaction lacks the expected Created event. Do not infer creation.');
     if(action==='create'){setId(target);setPrepared(null);setReferenceTerms(terms);}
@@ -142,25 +174,65 @@ export default function Workspace() {
       `Confirmed and independently checked: ${action}. Approval creates credit; only Withdrawn establishes withdrawal.`:
       `Transaction has a successful receipt, but complete agreement verification is unavailable. Hash: ${tx}`);
   });}
+  /** Read-only: never signs or sends. Only a receipt releases an unresolved attempt; a missing receipt keeps it. */
+  async function recheck(){await task('Rechecking transaction',async ticket=>{
+    if(!t||!connection)throw new Error('No verified deployment configured.');
+    const a=attemptRef.current; const hash=(recoverHash.trim()||a?.hash||'') as Hex;
+    if(!/^0x[0-9a-fA-F]{64}$/.test(hash))throw new Error('Paste the transaction hash from your wallet activity (0x followed by 64 hex characters).');
+    const {client}=connection;
+    let tx:Awaited<ReturnType<typeof client.getTransaction>>;
+    try { tx=await client.getTransaction({hash}); }
+    catch(e) {
+      if(e instanceof Error&&e.name==='TransactionNotFoundError'){
+        const note='This RPC does not know that hash yet. It stays unresolved; recheck later.';
+        if(a&&!a.hash)setAttempt({...a,note}); if(current(ticket))setMessage(note); return;
+      }
+      throw new Error('Could not read the transaction. The attempt stays unresolved.');
+    }
+    if(!tx.to||tx.to.toLowerCase()!==t.address.toLowerCase())throw new Error('That hash is not a transaction to this installation\u2019s contract.');
+    let fn='';try{fn=decodeFunctionData({abi:deliverProofAbi,data:tx.input}).functionName;}catch{/* unknown call */}
+    if(a&&(tx.from.toLowerCase()!==a.account.toLowerCase()||fn!==functionOf[a.action]||tx.chainId!==undefined&&tx.chainId!==a.chainId))throw new Error('That hash belongs to a different account, network or action than the unresolved attempt.');
+    let r:Awaited<ReturnType<typeof client.getTransactionReceipt>>|null=null;
+    try { r=await client.getTransactionReceipt({hash}); }
+    catch(e) { if(!(e instanceof Error&&e.name==='TransactionReceiptNotFoundError'))throw new Error('Could not read the receipt. The attempt stays unresolved.'); }
+    if(!r){
+      const note=`Found ${hash}, not confirmed yet. It stays unresolved; recheck later.`;
+      if(a)setAttempt({...a,hash,phase:'unknown',note}); if(current(ticket))setMessage(note); return;
+    }
+    if(r.status!=='success'){
+      const note=`Transaction ${hash} was included but reverted. The agreement did not change.`;
+      if(a)setAttempt({...a,hash,phase:'reverted',note}); if(current(ticket))setMessage(note); return;
+    }
+    const created=createdId(r.logs,t.address);
+    const note=created!==null?`Confirmed: agreement ${created} was created by ${tx.from}.`:`Confirmed in block ${r.blockNumber} (${fn||'call'} from ${tx.from}).`;
+    if(a)setAttempt({...a,hash,phase:'confirmed',note});
+    setRecoverHash('');
+    if(current(ticket))setMessage(`${note} Verify the agreement to see its independent evidence.`);
+  });}
   const readOnly=!t;
   return <><header className="top"><Link className="brand" href="/" aria-label="DeliverProof home"><span className="mark">D</span>DeliverProof</Link><span className="pill">{t?.chainId===31337?'LOCAL EVM':'TESTNET ONLY'}</span><button className="secondary" onClick={connect} disabled={!!busy||readOnly}>{account?short(account):'Connect wallet'}</button></header>
     <main><section className="intro"><div><p className="eyebrow">A SMALL AGREEMENT. AN EXPLICIT APPROVAL.</p><h1>Verify the delivery.<br/>Then release the credit.</h1><p>Check the file and the chain independently. Approval and withdrawal are separate steps.</p></div><aside className="scope"><strong>No automatic release</strong><p>Silence never pays the supplier. After the review deadline, the buyer can reclaim the deposit, even if a file was delivered.</p><small>No arbitration. No guarantee of quality. Test HBAR only.</small></aside></section>
     {readOnly&&<div className="notice warning"><strong>Deployment not configured.</strong> This source package has no public contract yet. Wallet actions remain disabled until an operator verifies and installs a deployment manifest.</div>}
     <div className="notice" role="status" aria-live="polite">{busy&&<span className="loading" aria-label="Working"/>}{message}</div>
+    {attempt&&<section className="panel attempt" aria-label="Transaction attempt"><p className="eyebrow">TRANSACTION ATTEMPT</p><dl><dt>Status</dt><dd>{phaseLabel[attempt.phase]}</dd><dt>Action</dt><dd>{attempt.action}{attempt.agreement==='new'?' · new agreement':` · agreement ${attempt.agreement}`}</dd><dt>Account</dt><dd>{attempt.account}</dd><dt>Network</dt><dd>{attempt.chainId}</dd><dt>Hash</dt><dd>{attempt.hash??'not returned by the wallet'}</dd></dl><p className="muted">{attempt.note}</p>
+      <div className="actions">{(attempt.hash&&attempt.phase!=='confirmed'&&attempt.phase!=='reverted')&&<button className="secondary" disabled={!!busy} onClick={()=>recheck()}>Recheck this hash (read-only)</button>}
+      {(attempt.phase==='confirmed'||attempt.phase==='reverted')&&<button className="secondary" disabled={!!busy} onClick={()=>setAttempt(null)}>Dismiss</button>}
+      {attempt.phase==='unknown'&&<button className="secondary" disabled={!!busy} onClick={()=>confirmRelease?setAttempt(null):setConfirmRelease(true)}>{confirmRelease?'Confirm: my wallet shows nothing was sent':'My wallet shows nothing was sent'}</button>}</div></section>}
+    {t&&<details className="panel"><summary>Recheck a transaction by hash</summary><p className="muted">Read-only. Use the hash from your wallet activity, for example after a reload or a lost response. Nothing is signed or sent.</p><label>Transaction hash<input value={recoverHash} onChange={e=>setRecoverHash(e.target.value)} placeholder="0x…" disabled={!!busy}/></label><button className="secondary" disabled={!!busy||!recoverHash.trim()} onClick={()=>recheck()}>Recheck hash</button></details>}
     <section className="toolbar"><label>Agreement number<input value={id} onChange={e=>contextChange(e.target.value)} inputMode="numeric" disabled={!!busy}/></label><button disabled={!!busy||readOnly} onClick={()=>task('Reading independent evidence',ticket=>inspect(ticket).then(()=>{}))}>Verify agreement</button><span className="muted">Reading needs no wallet.</span></section>
     <div className="grid"><section className="panel"><p className="eyebrow">01 / AGREEMENT</p><h2>{a?(a.withdrawn?'Withdrawal confirmed':states[a.state]):'Inspect an agreement'}</h2>
       {a?<><dl><dt>Buyer</dt><dd>{a.buyer}</dd><dt>Supplier</dt><dd>{a.supplier}</dd><dt>Deposit</dt><dd>{formatUnits(a.amountTinybar,8)} {t?.chainId===31337?'HBAR-equivalent (local accounting only)':'test HBAR'}</dd><dt>Delivery by</dt><dd>{new Date(Number(a.deliveryDeadline)*1000).toLocaleString()}</dd><dt>Review by</dt><dd>{new Date(Number(a.reviewDeadline)*1000).toLocaleString()}</dd><dt>Terms commitment</dt><dd>{a.termsHash}</dd></dl><p className="muted">Snapshot block {verified!.snapshot.number.toString()} · chain time {new Date(Number(verified!.snapshot.timestamp)*1000).toLocaleString()}. Buyer refund opens strictly after the review deadline; supplier refund is voluntary. Use Verify again to refresh; no background polling.</p></>:<p className="muted">A complete proof matches this installation’s contract, immutable terms, transaction receipts and event history.</p>}
       {a&&<label>Shared agreement terms<textarea rows={3} value={referenceTerms} onChange={e=>setReferenceTerms(e.target.value)} maxLength={4000} disabled={!!busy}/><span className="muted">{keccak256(stringToHex(referenceTerms))===a.termsHash?'Terms match the on-chain commitment.':'Paste the exact shared text before depositing, delivering or approving.'}</span></label>}
       <label className="check"><input type="checkbox" checked={policy} onChange={e=>setPolicy(e.target.checked)}/>I understand this is a testnet prototype using public synthetic data. The buyer can refund after the review deadline without approval; suppliers accept this risk.</label>
-      <div className="actions"><button disabled={!!busy||!account||!policy||a?.state!==1||!ours(a?.buyer)} onClick={()=>write('fund')}>Deposit exact amount</button><button disabled={!!busy||!account||!policy||a?.state!==3||!ours(a?.buyer)||proof?.status!=='verified'} onClick={()=>write('approve')}>Approve verified delivery</button><button className="secondary" disabled={!!busy||!account||!policy||!a||![2,3].includes(a.state)||!(ours(a.supplier)||(ours(a.buyer)&&verified!.snapshot.timestamp>a.reviewDeadline))} onClick={()=>write('refund')}>Request refund</button><button disabled={!!busy||!account||!policy||!a||![4,5].includes(a.state)||a.withdrawn||!ours(a.state===4?a.supplier:a.buyer)} onClick={()=>write('withdraw')}>Withdraw available credit</button></div>
+      <div className="actions"><button disabled={locked||!!busy||!account||!policy||a?.state!==1||!ours(a?.buyer)} onClick={()=>write('fund')}>Deposit exact amount</button><button disabled={locked||!!busy||!account||!policy||a?.state!==3||!ours(a?.buyer)||proof?.status!=='verified'} onClick={()=>write('approve')}>Approve verified delivery</button><button className="secondary" disabled={locked||!!busy||!account||!policy||!a||![2,3].includes(a.state)||!(ours(a.supplier)||(ours(a.buyer)&&verified!.snapshot.timestamp>a.reviewDeadline))} onClick={()=>write('refund')}>Request refund</button><button disabled={locked||!!busy||!account||!policy||!a||![4,5].includes(a.state)||a.withdrawn||!ours(a.state===4?a.supplier:a.buyer)} onClick={()=>write('withdraw')}>Withdraw available credit</button></div>
     </section><section className="panel"><p className="eyebrow">02 / DELIVERY</p><h2>The bytes are the evidence.</h2><p>Text, JSON or PDF · maximum 1 MiB. File preparation stays in this browser. IPFS publishing is a separate, explicit step.</p>
       {verified?.delivery?<dl><dt>Recorded CID</dt><dd>{verified.delivery.cid}</dd><dt>SHA-256</dt><dd>{verified.delivery.fileSha256}</dd><dt>File size</dt><dd>{verified.delivery.fileSize.toString()} bytes</dd></dl>:<><label>Public synthetic file<input type="file" accept=".txt,.json,.pdf" disabled={!!busy||a?.state!==2} onChange={e=>{const file=e.target.files?.[0];setProof(null);setPrepared(null);setVerifiedBytes(null);if(file)void task('Preparing local file',async ticket=>{if(file.size>1048576)throw new Error('File exceeds 1 MiB.');const p=await prepareArtifact(new Uint8Array(await file.arrayBuffer()));if(current(ticket)){setPrepared(p);setMessage('CAR prepared locally. Download it, pin using an authorized IPFS tool, then verify retrieval.');}});}}/></label><label>Declared media type<select value={media} disabled={!!busy} onChange={e=>{setMedia(Number(e.target.value) as 1|2|3);setProof(null);setVerifiedBytes(null);}}><option value={1}>Plain text</option><option value={2}>JSON</option><option value={3}>PDF</option></select></label>{prepared&&<><p className="mono">{prepared.cid}</p><button className="secondary" onClick={()=>download('deliverproof-public.car',prepared.car,'application/vnd.ipld.car')}>Download CAR for pinning</button></>}</>}
       <div className="actions"><button className="secondary" disabled={!!busy||(!prepared&&!verified?.delivery)} onClick={()=>verifyFile('gateway')}>Retrieve and verify IPFS</button><label className="file-button">Verify a downloaded CAR<input type="file" accept=".car" disabled={!!busy||!verified?.delivery} onChange={e=>{const file=e.target.files?.[0];if(file)void verifyFile('car',file);}}/></label></div>
       {proof&&<div className={`proof ${proof.status}`}><strong>{proof.status==='verified'?'File integrity verified':proof.status==='mismatch'?'Evidence does not match':'Verification inconclusive'}</strong><span>{proof.message}</span></div>}
       {verifiedBytes&&proof?.status==='verified'&&<button className="secondary" onClick={()=>download('verified-delivery.bin',verifiedBytes,'application/octet-stream')}>Download verified bytes for review</button>}
-      <button disabled={!!busy||!policy||a?.state!==2||!ours(a?.supplier)||!prepared||proof?.status!=='verified'} onClick={()=>write('submit')}>Record this delivery</button><p className="muted">A matching file proves integrity, not quality or ownership. Unavailable content never turns into a successful check.</p>
+      <button disabled={locked||!!busy||!policy||a?.state!==2||!ours(a?.supplier)||!prepared||proof?.status!=='verified'} onClick={()=>write('submit')}>Record this delivery</button><p className="muted">A matching file proves integrity, not quality or ownership. Unavailable content never turns into a successful check.</p>
     </section></div>
     {verified&&<section className="panel evidence"><div><p className="eyebrow">03 / INDEPENDENT CHAIN READ</p><h2>What is actually confirmed</h2></div><ol className="timeline">{verified.milestones.map((m,i)=><li key={`${m.hash}-${m.event}-${i}`}><span className="dot"/><strong>{m.event}</strong><span className="mono">{short(m.hash)}</span><small>Block {m.block.toString()}</small></li>)}</ol><button className="secondary" onClick={()=>download(`agreement-${id}-evidence.json`,printable({version:1,kind:'observed-evidence-not-a-trust-anchor',agreementId:id,snapshot:verified.snapshot,agreement:verified.agreement,milestones:verified.milestones,content:proof?{status:proof.status,commitment:proof.commitment,code:proof.message}:null}),'application/json')}>Export observed evidence</button><p className="muted">The export records observations. It cannot configure the trusted contract or prove future availability. Network history can change; recheck before acting.</p></section>}
-    <details className="panel"><summary>Create a new test agreement</summary><div className="create-grid"><label>Supplier wallet<input value={supplier} onChange={e=>setSupplier(e.target.value)} placeholder="0x…" disabled={!!busy}/></label><label>Test HBAR (maximum 10)<input value={amount} onChange={e=>setAmount(e.target.value)} inputMode="decimal" disabled={!!busy}/></label><label>Delivery window (minutes)<input type="number" min="5" value={deliveryMinutes} onChange={e=>setDeliveryMinutes(e.target.value)} disabled={!!busy}/></label><label>Review window from now (minutes)<input type="number" value={reviewMinutes} onChange={e=>setReviewMinutes(e.target.value)} disabled={!!busy}/></label><label className="wide">Public synthetic terms<textarea rows={3} value={terms} onChange={e=>setTerms(e.target.value)} maxLength={4000} disabled={!!busy}/></label></div><button className="secondary" onClick={()=>download('public-agreement-terms.txt',terms,'text/plain')}>Save terms to share with supplier</button><p>The exact UTF-8 terms are hashed, including whitespace. Share the text with the supplier and keep your copy. No personal data or confidential deliverables.</p><button disabled={!!busy||readOnly||!account||!policy} onClick={()=>write('create')}>Review creation in wallet</button></details>
+    <details className="panel"><summary>Create a new test agreement</summary><div className="create-grid"><label>Supplier wallet<input value={supplier} onChange={e=>setSupplier(e.target.value)} placeholder="0x…" disabled={!!busy}/></label><label>Test HBAR (maximum 10)<input value={amount} onChange={e=>setAmount(e.target.value)} inputMode="decimal" disabled={!!busy}/></label><label>Delivery window (minutes)<input type="number" min="5" value={deliveryMinutes} onChange={e=>setDeliveryMinutes(e.target.value)} disabled={!!busy}/></label><label>Review window from now (minutes)<input type="number" value={reviewMinutes} onChange={e=>setReviewMinutes(e.target.value)} disabled={!!busy}/></label><label className="wide">Public synthetic terms<textarea rows={3} value={terms} onChange={e=>setTerms(e.target.value)} maxLength={4000} disabled={!!busy}/></label></div><button className="secondary" onClick={()=>download('public-agreement-terms.txt',terms,'text/plain')}>Save terms to share with supplier</button><p>The exact UTF-8 terms are hashed, including whitespace. Share the text with the supplier and keep your copy. No personal data or confidential deliverables.</p><button disabled={locked||!!busy||readOnly||!account||!policy} onClick={()=>write('create')}>Review creation in wallet</button></details>
     <footer>DeliverProof · Original Scaffold-HBAR template · Testnet prototype · No fee, administrator or automatic release.</footer></main></>;
 }
