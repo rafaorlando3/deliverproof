@@ -1,4 +1,6 @@
-# Protocol v1 — M1 cloud results received; public/testnet validation pending
+# Protocol v1
+
+Status: local contract, core and chain tests pass; public testnet and IPFS validation are pending (see [STATUS](STATUS.md)).
 
 ## State and time
 
@@ -63,7 +65,7 @@ is a later gate; UI cannot infer payment from the helper alone.
 
 ## Evidence required before public readiness
 
-Cloud compile/type/test results and reviewed lockfile; clean install; exact
+Compile/type/test results and reviewed lockfile; clean install; exact
 Solidity/TypeScript commitment parity; two real testnet participants; deposit,
 submit, approve, credit, withdraw and timeout/refund receipts; Hedera unit check;
 IPFS pin/retrieval; frontend review and read-only expected-deployment verification.
