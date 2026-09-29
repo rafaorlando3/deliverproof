@@ -23,6 +23,8 @@ import { CID } from 'multiformats/cid';
 import { sha256 } from 'multiformats/hashes/sha2';
 import { deliverProofAbi } from '../src/abi.js';
 import { crossCheckHcs, hcsMessage, type TopicInfo, type TopicMessage } from '../src/hcs.js';
+import { publishHcsTrail } from '../src/hcs-publish.js';
+import { fakeHcs } from '../test/fake-hcs.js';
 import {
   verifyAgreement,
   type ChainLog,
@@ -915,5 +917,52 @@ describe('trilha HCS suplementar sobre eventos reais do nó', () => {
         status: 'mismatch',
         code: 'hcs_unknown_event',
       });
+  });
+});
+
+describe('publicador HCS sobre eventos reais do nó (tópico em memória, sem rede Hedera)', () => {
+  it('publica o que falta, confere; depois do saque publica só o evento novo; leitura velha é recusada', async () => {
+    const t = await deploy();
+    const a = await create(t);
+    await call(t, buyer, 'fund', [a.id], a.amount);
+    await submit(t, a.id);
+    await call(t, buyer, 'approve', [a.id, await commitmentOf(t, a.id)]);
+    const before = await verifyAgreement(t, a.id, reader());
+    expect(before.status).toBe('verified');
+    const key = { type: 'ED25519' as const, key: '11'.repeat(32) };
+    const trusted = { topicId: '0.0.9002', submitKey: key };
+    const f = fakeHcs(trusted.topicId, key, 1); // o mirror mostra cada mensagem uma leitura depois
+    const fast = { confirmDelayMs: 0 };
+
+    const first = await publishHcsTrail(t, a.id, before, trusted, f.reader, f.writer, fast);
+    expect(first).toMatchObject({ status: 'published', confirmed: true, check: { status: 'consistent' } });
+    expect(f.submits).toBe(5);
+    if (before.status === 'verified')
+      expect(f.consensus().map(m => new TextDecoder().decode(m.bytes))).toEqual(
+        before.milestones.map(m => hcsMessage(t, a.id, m)),
+      );
+
+    await call(t, supplier, 'withdraw', [a.id]);
+    const after = await verifyAgreement(t, a.id, reader());
+    const second = await publishHcsTrail(t, a.id, after, trusted, f.reader, f.writer, fast);
+    expect(second).toMatchObject({ status: 'published', confirmed: true });
+    if (second.status === 'published') {
+      expect(second.submitted).toHaveLength(1);
+      expect(JSON.parse(second.submitted[0]!.message)).toMatchObject({
+        event: 'Withdrawn',
+        agreementId: a.id.toString(),
+      });
+    }
+    expect(f.submits).toBe(6);
+
+    // A leitura do contrato anterior ao saque não enxerga o Withdrawn que já está no tópico.
+    expect(await publishHcsTrail(t, a.id, before, trusted, f.reader, f.writer, fast)).toEqual({
+      status: 'refused',
+      code: 'hcs_after_snapshot',
+    });
+    expect(await publishHcsTrail(t, a.id, after, trusted, f.reader, f.writer, fast)).toMatchObject({
+      status: 'up_to_date',
+    });
+    expect(f.submits).toBe(6);
   });
 });

@@ -24,10 +24,30 @@ so the regression claim rests on the displayed assertion failures, not that exit
 code alone. No code or test ran on the owner's Mac. Node 20 and 24 were not rerun
 for this HCS correction.
 
-A fresh public CLI installation of this integration is pending. The prior public
-run below covers e43e970 only. Hedera deployment, live HCS use, public IPFS retrieval
-and final bounty submission remain pending. No testnet credentials or transactions
-are used in these reviews.
+Fresh public installation of integration `582022e09f191bed702d74afea501dba26412c3d` completed:
+https://github.com/rafaorlando3/deliverproof/actions/runs/36544715934. Workflow commit
+4e04e4d59c5f3fb1295438c8c132a5f385a8584e on validation/public-install, CLI 0.4.1,
+Node 22.22.2 and npm@10.9.7, no secrets or local override. Main remained 582022e
+before and after installation. CLI exit 0; check, core:test (72 passed/1 skipped),
+hardhat:test (38), next:build and chain:test (45) each exited 0. The skipped test is
+the opt-in live mirror check (HCS_LIVE_TOPIC was unset), not an observed live HCS
+success. Lint and formatting were not repeated in this public workflow.
+
+Artifact public-install-evidence-36544715934-1 has SHA256
+`a6615b2e50837e85ab618edba6bf21457ac056dc31d182e763b7273b0fbe9bea`. Its 20 files were downloaded
+and the digest independently checked. Generated tree: 60 files against 61 source
+files. template.json is omitted; packageManager metadata changes in three
+manifests and package-lock.json differs. Every other file, including all eight
+Markdown documents and HCS source/tests, matches the installed source by SHA256.
+The registry version and integrity were unchanged before/after the run. The CLI
+emitted a tar@6.2.1 deprecation/security notice; success is not a claim of no
+vulnerabilities. No private key or secret was supplied or needed.
+
+The follow-up documentation commit records that result without rerunning suites;
+its executable files, configuration, lockfile and tests remain identical to 582022e.
+The earlier run below covers e43e970 only. Hedera deployment, live HCS use, public
+IPFS retrieval and final bounty submission remain pending. No testnet credentials
+or transactions are used in these reviews.
 
 ## Recorded public installation — 2026-09-29
 

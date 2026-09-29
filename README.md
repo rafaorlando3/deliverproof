@@ -7,8 +7,8 @@ DeliverProof is an escrow for one buyer, one supplier and one file. The supplier
 Anyone can check an agreement without a wallet. The verifier replays the contract's history from its public deployment, checks every event and receipt, and reads the stored state at one block. When the data it needs is missing it answers `inconclusive`. It never guesses a success.
 
 > **Status: public source template, not yet a live Hedera demo.**
-> A clean install of source `e43e970` through the official CLI on a GitHub-hosted
-> runner is recorded ([run 36538164582](https://github.com/rafaorlando3/deliverproof/actions/runs/36538164582)).
+> A clean install of source `582022e` through the official CLI on a GitHub-hosted
+> runner is recorded ([run 36544715934](https://github.com/rafaorlando3/deliverproof/actions/runs/36544715934)).
 > The Hedera testnet deployment and public IPFS retrieval are still pending; the
 > [evidence table](#public-evidence) is filled only with verified public links.
 > The shipped deployment manifest is `null`, so a fresh app shows a clearly labelled,
@@ -55,7 +55,7 @@ npm run next:start
 
 Open http://127.0.0.1:3000 (`npm run next:dev` for development). With the stock `null` manifest you see the disabled source preview. With a reviewed deployment manifest installed, enter an agreement number and press **Verify agreement**: the page shows the state, participants, deposit, snapshot block and checked event history without connecting a wallet. There is no public contract address or sample agreement number yet.
 
-The install above is the one recorded for source `e43e9702c581fb26a776c802a272d5f9b4cd627b`: CLI 0.4.1 on a GitHub-hosted runner with Node 22.22.2 and npm@10.9.7, no secrets and no template override ([run 36538164582](https://github.com/rafaorlando3/deliverproof/actions/runs/36538164582)). The install and the `check`, `core:test`, `hardhat:test`, `next:build` and `chain:test` scripts exited 0 there. Later commits do not inherit that result.
+The install above is recorded for source `582022e09f191bed702d74afea501dba26412c3d`: CLI 0.4.1 on a GitHub-hosted runner with Node 22.22.2 and npm@10.9.7, no secrets and no template override ([run 36544715934](https://github.com/rafaorlando3/deliverproof/actions/runs/36544715934)). The install and the `check`, `core:test` (72 passed, 1 live-mirror test skipped), `hardhat:test` (38), `next:build` and `chain:test` (45) scripts exited 0. All eight Markdown files matched the source exactly. The CLI removed `template.json` and changed the lockfile and package-manager metadata in three manifests; see [INSTALL](docs/INSTALL.md#external-scaffold-hbar-template-gate). Later commits do not inherit this execution result.
 
 ### Run the app against a local chain
 
@@ -156,7 +156,7 @@ links from our own testnet run. A submitted hash alone does not count.
 | Required evidence | Current state |
 | --- | --- |
 | Public source repository | Done: https://github.com/rafaorlando3/deliverproof |
-| Fresh external CLI installation on a clean runner | Done for source `e43e970`: [run 36538164582](https://github.com/rafaorlando3/deliverproof/actions/runs/36538164582), evidence artifact sha256 `847852e9bf290180efe9337904cf56a04e10dd9be25928e3ad10f0a247ebafd2` |
+| Fresh external CLI installation on a clean runner | Done for source `582022e`: [run 36544715934](https://github.com/rafaorlando3/deliverproof/actions/runs/36544715934), evidence artifact sha256 `a6615b2e50837e85ab618edba6bf21457ac056dc31d182e763b7273b0fbe9bea` |
 | Contract address, runtime hash and canonical deployment receipt | Pending |
 | First agreement creation and exact deposit (tinybar × 10^10 in RPC) | Pending |
 | Delivery commitment, preserved-root CID and public CAR retrieval | Pending |
@@ -175,8 +175,8 @@ links from our own testnet run. A submitted hash alone does not count.
 The counts above come from reviewed cloud logs on Node 22.22.2 for 76b989d.
 The executable source, configuration, lockfile and tests in this integration match
 that candidate byte for byte; the integration also updates documentation. Node 20
-and 24 were not rerun for HCS. These results are separate from the recorded public
-CLI installation of e43e970. See [STATUS](docs/STATUS.md) for the evidence boundaries.
+and 24 were not rerun for HCS. The public CLI installation of 582022e independently produced the same test
+counts on Node 22.22.2; it did not repeat lint or the formatter. See [STATUS](docs/STATUS.md) for the evidence boundaries.
 `npm run next:lint`, `npm run next:check` before and after `npm run next:build`,
 and `npm run format:check` complete the checks. One known lint warning remains.
 Formatting excludes Markdown and evidence artifacts.

@@ -101,6 +101,30 @@ use the allowlisted testnet mirror, fixed paths, no credentials, no redirects, a
 10 s timeout, 512 KiB per response and at most 4 pages of 100 messages. Trust
 boundary: an independently queried mirror node, not a state proof.
 
+### Publishing the trail
+
+`createHcsTopic` creates the topic with the operator key as its only submit key and
+no admin key, so nobody can delete the topic or replace its submit key later; memo
+`DeliverProof.hcs.v1`. The operator records the returned topic ID and public key as
+the trusted topic. `publishHcsTrail` runs the same check first and writes only when
+the result is `incomplete`: the canonical messages still missing, in contract order,
+one single-chunk submission each, at most 16 per run. It never writes on `mismatch`
+or `inconclusive`, when the signing key differs from the trusted submit key, or for
+bytes that are not the exact canonical encoding. After writing it rereads the mirror
+(6 times, 3 s apart, by default) and reports `confirmed` only when the whole trail is
+visible. A failed submission stops the run and reports what already reached
+consensus; the next run rereads the topic and continues. A rerun while the mirror is
+still behind can leave a duplicate, which the check counts and tolerates. Run one
+publisher per topic.
+
+`sdkTopicWriter` (Hiero JavaScript SDK, testnet only) pays and signs with one operator
+account whose key is also the submit key. The caller reads the key from the process
+environment; it stays inside the writer and never appears in a result, error or log; failures carry
+only a code from a fixed list and, when the network returned one, a Hedera status name from a
+closed list (`HEDERA_TOPIC_STATUSES`, checked against the SDK in the tests). An unlisted name is
+dropped. Errors, receipts and keys coming from a writer or executor are read once inside a guard
+and rebuilt from those fields; the original objects are never rethrown or returned.
+
 ## Evidence required before public readiness
 
 Compile/type/test results and reviewed lockfile; clean install; exact
