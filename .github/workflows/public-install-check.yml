@@ -1,0 +1,259 @@
+# Public install check for the DeliverProof Scaffold-HBAR template.
+#
+# Runs the official create-scaffold-hbar CLI against the public repository on a
+# GitHub-hosted runner, then runs the documented checks in the generated app.
+# It uses no secrets, deploys nothing, uploads nothing to IPFS and never uses
+# the CLI's local template override. It lives only on the validation branch:
+# the push that publishes this branch starts the run (workflow_dispatch alone
+# would require the file on the default branch).
+
+name: Public install check
+
+on:
+  push:
+    branches: [validation/public-install]
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Full SHA that main of the template repository must have before and after the install'
+        required: true
+        default: 'e43e9702c581fb26a776c802a272d5f9b4cd627b'
+      cli_version:
+        description: 'create-scaffold-hbar version: latest or x.y.z'
+        required: true
+        default: 'latest'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-install-check
+  cancel-in-progress: false
+
+env:
+  TEMPLATE_REPO: rafaorlando3/deliverproof
+  EXPECTED_SHA: ${{ inputs.expected_sha || 'e43e9702c581fb26a776c802a272d5f9b4cd627b' }}
+  CLI_VERSION: ${{ inputs.cli_version || 'latest' }}
+  NODE_VERSION: '22.22.2'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  install:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Guard inputs and record versions
+        run: |
+          set -euo pipefail
+          E="$GITHUB_WORKSPACE/evidence"
+          mkdir -p "$E"
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::expected_sha must be 40 lowercase hex characters"; exit 1; }
+          [[ "$CLI_VERSION" =~ ^(latest|[0-9]+\.[0-9]+\.[0-9]+)$ ]] || { echo "::error::cli_version must be latest or x.y.z"; exit 1; }
+          if [ -n "${CREATE_SCAFFOLD_HBAR_TEMPLATE_DIR+x}" ]; then
+            echo "::error::CREATE_SCAFFOLD_HBAR_TEMPLATE_DIR is set; this check must download the public template"
+            exit 1
+          fi
+          # The CLI creates an initial commit and checks that a git identity exists.
+          git config --global user.name "public-install-check"
+          git config --global user.email "public-install-check@users.noreply.github.com"
+          {
+            echo "date_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "runner_image=${ImageOS:-unknown} ${ImageVersion:-unknown}"
+            echo "kernel=$(uname -srm)"
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "git=$(git --version)"
+            echo "template_repo=$TEMPLATE_REPO"
+            echo "expected_sha=$EXPECTED_SHA"
+            echo "cli_spec=create-scaffold-hbar@$CLI_VERSION"
+            echo "local_override=unset"
+            echo "workflow_commit=$GITHUB_SHA"
+            echo "run=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT"
+          } | tee "$E/01-context.txt"
+          npm view "create-scaffold-hbar@$CLI_VERSION" version dist.integrity dist.shasum --json | tee "$E/02-cli-registry-before.json"
+
+      - name: Check the public origin before the install
+        run: |
+          set -euo pipefail
+          E="$GITHUB_WORKSPACE/evidence"
+          git ls-remote "https://github.com/$TEMPLATE_REPO.git" HEAD refs/heads/main | tee "$E/03-origin-before.txt"
+          got=$(awk '$2 == "refs/heads/main" { print $1 }' "$E/03-origin-before.txt")
+          if [ "$got" != "$EXPECTED_SHA" ]; then
+            echo "::error::main of $TEMPLATE_REPO is ${got:-missing}, expected $EXPECTED_SHA"
+            exit 1
+          fi
+
+      - name: Install with the official CLI (public template, no override)
+        id: cli
+        run: |
+          set -uo pipefail
+          E="$GITHUB_WORKSPACE/evidence"
+          sanitize() {
+            sed -E \
+              -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' \
+              -e 's/([Pp]rivate[ _-]?[Kk]ey[^0-9A-Fa-f]{0,20})(0x)?[0-9A-Fa-f]{64}/\1[REDACTED]/g' \
+              -e 's/(gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}/[REDACTED]/g' \
+              -e 's/npm_[A-Za-z0-9]{36}/[REDACTED]/g' "$1"
+          }
+          mkdir -p "$RUNNER_TEMP/gen"
+          cd "$RUNNER_TEMP/gen"
+          npx -y "create-scaffold-hbar@$CLI_VERSION" deliverproof-app --template "$TEMPLATE_REPO" -f nextjs-app -s hardhat --network testnet --package-manager npm --skip-hedera-skills --ci > "$E/04-cli-install.raw" 2>&1
+          rc=$?
+          sanitize "$E/04-cli-install.raw" > "$E/04-cli-install.log"
+          rm -f "$E/04-cli-install.raw"
+          cat "$E/04-cli-install.log"
+          echo "cli_exit=$rc" | tee "$E/05-cli-exit.txt"
+          exit "$rc"
+
+      - name: Check the public origin after the install
+        run: |
+          set -euo pipefail
+          E="$GITHUB_WORKSPACE/evidence"
+          git ls-remote "https://github.com/$TEMPLATE_REPO.git" HEAD refs/heads/main | tee "$E/06-origin-after.txt"
+          got=$(awk '$2 == "refs/heads/main" { print $1 }' "$E/06-origin-after.txt")
+          if [ "$got" != "$EXPECTED_SHA" ]; then
+            echo "::error::main of $TEMPLATE_REPO changed during the run: ${got:-missing}, expected $EXPECTED_SHA"
+            exit 1
+          fi
+
+      - name: Record the generated tree and compare it with the template SHA
+        run: |
+          set -euo pipefail
+          E="$GITHUB_WORKSPACE/evidence"
+          APP="$RUNNER_TEMP/gen/deliverproof-app"
+          T="$RUNNER_TEMP/template"
+          test -f "$APP/package.json" || { echo "::error::the CLI did not create deliverproof-app/package.json"; exit 1; }
+          cd "$APP"
+          find . \( -name node_modules -o -name .git \) -prune -o -type f -print | sed 's|^\./||' | LC_ALL=C sort > "$E/07-generated-files.txt"
+          tr '\n' '\0' < "$E/07-generated-files.txt" | xargs -0 sha256sum > "$E/08-generated.sha256"
+          git log -1 --format='%H %s' > "$E/09-cli-initial-commit.txt" 2>&1 || echo "no git commit created by the CLI" > "$E/09-cli-initial-commit.txt"
+          git init -q "$T"
+          git -C "$T" fetch -q --depth 1 "https://github.com/$TEMPLATE_REPO.git" "$EXPECTED_SHA"
+          git -C "$T" checkout -q FETCH_HEAD
+          test "$(git -C "$T" rev-parse HEAD)" = "$EXPECTED_SHA"
+          git -C "$T" ls-files | LC_ALL=C sort > "$E/10-template-files.txt"
+          {
+            echo "# Template $TEMPLATE_REPO@$EXPECTED_SHA versus the tree generated by the CLI"
+            echo "# Report only: the CLI is expected to transform some files (see docs/INSTALL.md)."
+            echo "## Only in the template"
+            LC_ALL=C comm -23 "$E/10-template-files.txt" "$E/07-generated-files.txt"
+            echo "## Only in the generated tree"
+            LC_ALL=C comm -13 "$E/10-template-files.txt" "$E/07-generated-files.txt"
+            echo "## Present in both, different bytes"
+            LC_ALL=C comm -12 "$E/10-template-files.txt" "$E/07-generated-files.txt" | while IFS= read -r f; do
+              cmp -s "$T/$f" "$APP/$f" || echo "$f"
+            done
+          } > "$E/11-template-vs-generated.txt"
+          LC_ALL=C comm -12 "$E/10-template-files.txt" "$E/07-generated-files.txt" | while IFS= read -r f; do
+            if [ "$f" != "package-lock.json" ] && ! cmp -s "$T/$f" "$APP/$f"; then
+              diff -u --label "template/$f" --label "generated/$f" "$T/$f" "$APP/$f" || true
+            fi
+          done > "$E/11-template-vs-generated.diff"
+          {
+            echo "generated_files=$(wc -l < "$E/07-generated-files.txt")"
+            echo "generated_tree_sha256=$(sha256sum < "$E/08-generated.sha256" | cut -c1-64)"
+            echo "template_files=$(wc -l < "$E/10-template-files.txt")"
+            echo "package_name=$(node -p 'require("./package.json").name')"
+          } | tee "$E/12-tree-summary.txt"
+          cat "$E/11-template-vs-generated.txt"
+
+      - name: Run the documented checks in the generated app
+        run: |
+          set -uo pipefail
+          E="$GITHUB_WORKSPACE/evidence"
+          sanitize() {
+            sed -E \
+              -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' \
+              -e 's/([Pp]rivate[ _-]?[Kk]ey[^0-9A-Fa-f]{0,20})(0x)?[0-9A-Fa-f]{64}/\1[REDACTED]/g' \
+              -e 's/(gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}/[REDACTED]/g' \
+              -e 's/npm_[A-Za-z0-9]{36}/[REDACTED]/g' "$1"
+          }
+          cd "$RUNNER_TEMP/gen/deliverproof-app"
+          fail=0
+          : > "$E/13-checks.txt"
+          for s in check core:test hardhat:test next:build chain:test; do
+            n="14-${s//:/-}"
+            start=$(date +%s)
+            npm run "$s" > "$E/$n.raw" 2>&1
+            rc=$?
+            sanitize "$E/$n.raw" > "$E/$n.log"
+            rm -f "$E/$n.raw"
+            echo "npm run $s exit=$rc seconds=$(( $(date +%s) - start ))" | tee -a "$E/13-checks.txt"
+            echo "::group::npm run $s (exit $rc)"
+            cat "$E/$n.log"
+            echo "::endgroup::"
+            [ "$rc" -eq 0 ] || fail=1
+          done
+          exit "$fail"
+
+      - name: Record the registry again
+        if: always()
+        run: |
+          set -uo pipefail
+          E="$GITHUB_WORKSPACE/evidence"
+          mkdir -p "$E"
+          npm view "create-scaffold-hbar@$CLI_VERSION" version dist.integrity dist.shasum --json > "$E/15-cli-registry-after.json" 2>&1 || true
+          cat "$E/15-cli-registry-after.json"
+
+      - name: Scan the evidence for secrets
+        id: scan
+        if: always()
+        run: |
+          set -uo pipefail
+          E="$GITHUB_WORKSPACE/evidence"
+          mkdir -p "$E"
+          if grep -rIlE -e '-----BEGIN [A-Z ]*PRIVATE KEY-----' -e '(gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}' -e 'npm_[A-Za-z0-9]{36}' -e '[Pp]rivate[ _-]?[Kk]ey[^0-9A-Fa-f]{0,20}(0x)?[0-9A-Fa-f]{64}' "$E"; then
+            echo "::error::a secret-like pattern remained in the evidence; nothing will be uploaded"
+            exit 1
+          fi
+          echo "no secret-like pattern found"
+
+      - name: Write the job summary
+        if: always()
+        run: |
+          set -uo pipefail
+          E="$GITHUB_WORKSPACE/evidence"
+          v() { [ -f "$E/$1" ] && cat "$E/$1" || echo "not recorded"; }
+          {
+            echo "## DeliverProof public install check"
+            echo
+            echo "Official create-scaffold-hbar CLI, public template, GitHub-hosted runner, no secrets, no override."
+            echo "This run does not deploy, send a transaction or upload to IPFS."
+            echo
+            echo '```'
+            v 01-context.txt
+            echo "--- registry before"
+            v 02-cli-registry-before.json
+            echo "--- origin before"
+            v 03-origin-before.txt
+            echo "--- CLI"
+            v 05-cli-exit.txt
+            echo "--- origin after"
+            v 06-origin-after.txt
+            echo "--- generated tree"
+            v 12-tree-summary.txt
+            echo "--- documented checks"
+            v 13-checks.txt
+            echo '```'
+            echo
+            echo "Full logs, file hashes and the template comparison are in the run artifact."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the evidence
+        if: always() && steps.scan.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: public-install-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence/
+          if-no-files-found: error
+          include-hidden-files: false
+          retention-days: 90
