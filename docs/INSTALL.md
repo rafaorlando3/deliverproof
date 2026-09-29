@@ -25,8 +25,9 @@ and one frontend lint warning remain; “exit 0” does not mean warning-free.
 The manifest declares `>=20.18.3 <21 || >=22.18.0 <23 || >=24.0.0 <25`.
 Do not claim that every later version was validated, for Node or for npm.
 
-Source b55b656 differs from tested 15c65ba only in STATUS.md; later guide edits
-also affect documentation only. See [STATUS](STATUS.md) for acceptance boundaries. Record the SHA, actual runtime and installation mode for a release
+Source b55b656 differs from tested 15c65ba only in STATUS.md; the guide edits
+that followed that battery affected documentation only. HCS was added later and
+validated on Node 22.22.2; the old Node 20/24 results do not cover HCS. See [STATUS](STATUS.md) for acceptance boundaries. Record the SHA, actual runtime and installation mode for a release
 candidate. Do not regenerate the lock merely to hide an installation failure.
 The reported Node-compatibility battery used ordinary `npm ci --no-audit --no-fund`;
 its results must not be described as an `--ignore-scripts` run.
@@ -187,6 +188,15 @@ rafaorlando3/deliverproof` with frontend Next.js, Hardhat, npm, **testnet**, and
 automatic skills installation. A clean install of source `e43e970` with CLI 0.4.1
 on a GitHub-hosted runner, without the local override, is recorded in
 https://github.com/rafaorlando3/deliverproof/actions/runs/36538164582. It covers that source only.
+
+The newer HCS integration `582022e09f191bed702d74afea501dba26412c3d` was independently
+installed with public CLI 0.4.1 in [run 36544715934](https://github.com/rafaorlando3/deliverproof/actions/runs/36544715934),
+with the same runtime and no override. The five documented workflow commands
+passed: check, core:test (72 passed/1 skipped), hardhat:test (38), next:build and
+chain:test (45). All eight Markdown documents matched the source. The CLI omitted
+template.json, changed packageManager to npm@10.0.0 in three manifests and changed
+package-lock.json; the actual runtime remained npm@10.9.7. The other 56 source
+files matched by SHA256. This is installation evidence, not a testnet or IPFS proof.
 
 
 ### Observed CLI 0.4.0 differences
