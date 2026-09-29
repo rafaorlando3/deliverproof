@@ -120,7 +120,10 @@ publisher per topic.
 `sdkTopicWriter` (Hiero JavaScript SDK, testnet only) pays and signs with one operator
 account whose key is also the submit key. The caller reads the key from the process
 environment; it stays inside the writer and never appears in a result, error or log; failures carry
-only a code and, when the network returned one, the Hedera status name.
+only a code from a fixed list and, when the network returned one, a Hedera status name from a
+closed list (`HEDERA_TOPIC_STATUSES`, checked against the SDK in the tests). An unlisted name is
+dropped. Errors, receipts and keys coming from a writer or executor are read once inside a guard
+and rebuilt from those fields; the original objects are never rethrown or returned.
 
 ## Evidence required before public readiness
 

@@ -23,6 +23,8 @@ import {
  * Run one publisher per topic. A retry after an interruption may leave a duplicate message;
  * the verifier counts duplicates and keeps the earliest sequence as the reference.
  */
+const TX_ID = /^0\.0\.[1-9][0-9]{0,15}@[0-9]{1,12}\.[0-9]{1,9}$/;
+
 export const MAX_PUBLISH_PER_RUN = 16;
 export const TOPIC_MEMO = HCS_DOMAIN;
 
@@ -38,14 +40,117 @@ export interface TopicWriter {
   submit(topicId: string, message: Uint8Array): Promise<{ sequence: number; transactionId: string }>;
 }
 
+export const PUBLISH_ERROR_CODES = Object.freeze([
+  'writer_unavailable',
+  'submit_failed',
+  'malformed_receipt',
+  'create_failed',
+] as const);
+export type PublishErrorCode = (typeof PUBLISH_ERROR_CODES)[number];
+
+/**
+ * Hedera status names a topic creation or a message submission can end with. The list is
+ * closed on purpose: an error keeps its status only when the name is on it, so nothing that
+ * merely looks like a status (any upper-case string) can travel in the status field. The
+ * test suite checks every name against the Hiero SDK Status list. Unknown names are dropped
+ * and only the error code remains.
+ */
+export const HEDERA_TOPIC_STATUSES = Object.freeze([
+  'ACCOUNT_DELETED',
+  'AUTORENEW_ACCOUNT_NOT_ALLOWED',
+  'AUTORENEW_DURATION_NOT_IN_RANGE',
+  'BAD_ENCODING',
+  'BUSY',
+  'DUPLICATE_TRANSACTION',
+  'FAIL_BALANCE',
+  'FAIL_FEE',
+  'FAIL_INVALID',
+  'INSUFFICIENT_ACCOUNT_BALANCE',
+  'INSUFFICIENT_PAYER_BALANCE',
+  'INSUFFICIENT_TX_FEE',
+  'INVALID_ACCOUNT_ID',
+  'INVALID_AUTORENEW_ACCOUNT',
+  'INVALID_CHUNK_NUMBER',
+  'INVALID_CHUNK_TRANSACTION_ID',
+  'INVALID_KEY_ENCODING',
+  'INVALID_NODE_ACCOUNT',
+  'INVALID_PAYER_ACCOUNT_ID',
+  'INVALID_SIGNATURE',
+  'INVALID_SIGNATURE_TYPE_MISMATCHING_KEY',
+  'INVALID_TOPIC_ID',
+  'INVALID_TOPIC_MESSAGE',
+  'INVALID_TRANSACTION',
+  'INVALID_TRANSACTION_BODY',
+  'INVALID_TRANSACTION_DURATION',
+  'INVALID_TRANSACTION_ID',
+  'INVALID_TRANSACTION_START',
+  'INVALID_ZERO_BYTE_IN_STRING',
+  'KEY_REQUIRED',
+  'MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED',
+  'MEMO_TOO_LONG',
+  'MESSAGE_SIZE_TOO_LARGE',
+  'NOT_SUPPORTED',
+  'PAYER_ACCOUNT_DELETED',
+  'PAYER_ACCOUNT_NOT_FOUND',
+  'PLATFORM_NOT_ACTIVE',
+  'PLATFORM_TRANSACTION_NOT_CREATED',
+  'RECEIPT_NOT_FOUND',
+  'THROTTLED_AT_CONSENSUS',
+  'TOPIC_EXPIRED',
+  'TRANSACTION_EXPIRED',
+  'TRANSACTION_HAS_UNKNOWN_FIELDS',
+  'TRANSACTION_ID_FIELD_NOT_ALLOWED',
+  'TRANSACTION_OVERSIZE',
+  'TRANSACTION_TOO_MANY_LAYERS',
+  'UNAUTHORIZED',
+  'UNKNOWN',
+] as const);
+
+const isPublishCode = (x: unknown): x is PublishErrorCode =>
+  typeof x === 'string' && (PUBLISH_ERROR_CODES as readonly string[]).includes(x);
+
+/** The status name if it is on the closed list, otherwise undefined. Never throws. */
+export const hederaStatus = (x: unknown): string | undefined =>
+  typeof x === 'string' && (HEDERA_TOPIC_STATUSES as readonly string[]).includes(x) ? x : undefined;
+
+/** Hedera transaction id as the SDK prints it: payer@seconds.nanos. */
+export const validTransactionId = (x: unknown): x is string => typeof x === 'string' && TX_ID.test(x);
+
+/**
+ * The only error this module and hcs-sdk.ts throw. The constructor itself enforces the
+ * contract: the code is one of PUBLISH_ERROR_CODES and the status is a listed Hedera name or
+ * absent. The message is the code.
+ */
 export class HcsPublishError extends Error {
-  constructor(
-    readonly code: 'writer_unavailable' | 'submit_failed' | 'malformed_receipt' | 'create_failed',
-    readonly status?: string,
-  ) {
-    super(code);
+  readonly code: PublishErrorCode;
+  readonly status: string | undefined;
+  constructor(code: PublishErrorCode, status?: unknown) {
+    super(isPublishCode(code) ? code : 'submit_failed');
     this.name = 'HcsPublishError';
+    this.code = isPublishCode(code) ? code : 'submit_failed';
+    this.status = hederaStatus(status);
   }
+}
+
+/**
+ * Rebuilds whatever a writer threw as a fresh HcsPublishError. Only an allowed code and a
+ * listed status survive; extra fields, getters and messages are dropped, and the original
+ * object is never rethrown or returned. Anything that is not an HcsPublishError, or whose
+ * fields cannot be read, becomes the fallback code with no status.
+ */
+export function toPublishError(e: unknown, fallback: PublishErrorCode): HcsPublishError {
+  let code: unknown;
+  let status: unknown;
+  try {
+    if (e instanceof HcsPublishError) {
+      code = e.code;
+      status = e.status;
+    }
+  } catch {
+    code = undefined;
+    status = undefined;
+  }
+  return new HcsPublishError(isPublishCode(code) ? code : fallback, status);
 }
 
 export type PublishOptions = {
@@ -66,16 +171,17 @@ export type PublishResult =
   /** Nothing was written: the topic or the input is in doubt. */
   | { status: 'refused'; code: string };
 
-const TX_ID = /^0\.0\.[1-9][0-9]{0,15}@[0-9]{1,12}\.[0-9]{1,9}$/;
-const STATUS = /^[A-Z_]{1,64}$/;
-
 const sameKey = (a: HcsKey, b: HcsKey) => a.type === b.type && a.key.toLowerCase() === b.key.toLowerCase();
 const defaultSleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
+/** Reads the writer key once and keeps only a fresh copy of its two fields. */
 function writerKey(writer: TopicWriter): HcsKey | null {
   try {
-    const k = writer.submitKey();
-    return validKey(k) ? k : null;
+    const k: unknown = writer.submitKey();
+    if (!k || typeof k !== 'object') return null;
+    const { type, key } = k as HcsKey;
+    const copy = { type, key };
+    return validKey(copy) ? copy : null;
   } catch {
     return null;
   }
@@ -85,15 +191,21 @@ function writerKey(writer: TopicWriter): HcsKey | null {
 export async function createHcsTopic(writer: TopicWriter): Promise<TrustedTopic> {
   const submitKey = writerKey(writer);
   if (!submitKey) throw new HcsPublishError('writer_unavailable');
-  let created: { topicId: string };
+  let created: unknown;
   try {
     created = await writer.createTopic(TOPIC_MEMO);
   } catch (e) {
-    if (e instanceof HcsPublishError) throw e;
-    throw new HcsPublishError('create_failed');
+    throw toPublishError(e, 'create_failed');
   }
-  if (!created || !validTopicId(created.topicId)) throw new HcsPublishError('malformed_receipt');
-  return { topicId: created.topicId, submitKey };
+  // The topic may exist now; a receipt that cannot be read is malformed, not a failed creation.
+  let topicId: unknown;
+  try {
+    topicId = (created as { topicId?: unknown } | null | undefined)?.topicId;
+  } catch {
+    topicId = undefined;
+  }
+  if (!validTopicId(topicId)) throw new HcsPublishError('malformed_receipt');
+  return { topicId, submitKey };
 }
 
 /** Writes the canonical messages the protected topic is missing, then rereads it. */
@@ -141,26 +253,27 @@ export async function publishHcsTrail(
   const submitted: Submitted[] = [];
   let last = 0;
   for (let i = 0; i < encoded.length; i++) {
-    let receipt: { sequence: number; transactionId: string };
+    let receipt: unknown;
     try {
       receipt = await writer.submit(trusted.topicId, encoded[i]!);
     } catch (e) {
-      const txStatus = e instanceof HcsPublishError && e.status && STATUS.test(e.status) ? e.status : undefined;
-      const code = e instanceof HcsPublishError ? e.code : 'submit_failed';
-      return txStatus
-        ? { status: 'interrupted', submitted, code, txStatus }
-        : { status: 'interrupted', submitted, code };
+      const err = toPublishError(e, 'submit_failed');
+      return err.status
+        ? { status: 'interrupted', submitted, code: err.code, txStatus: err.status }
+        : { status: 'interrupted', submitted, code: err.code };
     }
-    if (
-      !receipt ||
-      !Number.isSafeInteger(receipt.sequence) ||
-      receipt.sequence <= last ||
-      typeof receipt.transactionId !== 'string' ||
-      !TX_ID.test(receipt.transactionId)
-    )
+    // Read each receipt field once; a getter that throws or lies twice gets no second chance.
+    let sequence: unknown;
+    let transactionId: unknown;
+    try {
+      ({ sequence, transactionId } = receipt as { sequence?: unknown; transactionId?: unknown });
+    } catch {
       return { status: 'interrupted', submitted, code: 'malformed_receipt' };
-    last = receipt.sequence;
-    submitted.push({ sequence: receipt.sequence, transactionId: receipt.transactionId, message: pending[i]! });
+    }
+    if (!Number.isSafeInteger(sequence) || (sequence as number) <= last || !validTransactionId(transactionId))
+      return { status: 'interrupted', submitted, code: 'malformed_receipt' };
+    last = sequence as number;
+    submitted.push({ sequence: last, transactionId, message: pending[i]! });
   }
 
   // The mirror node lags consensus by a few seconds. Reread until it shows the whole trail.

@@ -14,7 +14,9 @@ import {
   TOPIC_MEMO,
   HcsPublishError,
   createHcsTopic,
+  hederaStatus,
   publishHcsTrail,
+  toPublishError,
   type TopicWriter,
 } from '../src/hcs-publish.js';
 import { fakeHcs } from './fake-hcs.js';
@@ -300,5 +302,155 @@ describe('createHcsTopic', () => {
     await expect(
       createHcsTopic({ ...f.writer, submitKey: () => ({ type: 'ED25519', key: 'zz' }) }),
     ).rejects.toMatchObject({ code: 'writer_unavailable' });
+  });
+});
+
+// Regressions for the Codex review of 86d4a82: a writer is outside the trust boundary. Its
+// errors, receipts and key are rebuilt from allowed fields, never passed through.
+describe('writer boundary: only listed codes and Hedera status names come out', () => {
+  // Synthetic marker: 64 upper-case hex letters, the shape the old /^[A-Z_]{1,64}$/ accepted.
+  const MARKER = 'DEADBEEF'.repeat(8);
+  const clean = (x: unknown) => {
+    const text = JSON.stringify(x) + String(x) + (x instanceof Error ? `${x.message}${x.stack ?? ''}` : '');
+    expect(text).not.toContain(MARKER);
+    expect(text).not.toContain('NOT_A_HEDERA_STATUS');
+  };
+  const failWith = (error: unknown) => {
+    const f = fakeHcs(trusted.topicId, key);
+    f.failSubmit = { at: 1, afterConsensus: false, error };
+    return f;
+  };
+
+  it('a status in the accepted shape but not a Hedera name is dropped; the writer is not called again', async () => {
+    for (const status of [MARKER, 'NOT_A_HEDERA_STATUS', 'SUCCESS_' + MARKER]) {
+      const f = failWith(new HcsPublishError('submit_failed', status));
+      const r = await publishHcsTrail(t, 7n, verified, trusted, f.reader, f.writer, fast);
+      expect(r).toEqual({ status: 'interrupted', submitted: [], code: 'submit_failed' });
+      expect(f.submits).toBe(1);
+      clean(r);
+    }
+    expect(hederaStatus(MARKER)).toBeUndefined();
+    expect(new HcsPublishError('submit_failed', MARKER).status).toBeUndefined();
+  });
+
+  it('listed statuses survive: INVALID_SIGNATURE and INSUFFICIENT_PAYER_BALANCE', async () => {
+    for (const status of ['INVALID_SIGNATURE', 'INSUFFICIENT_PAYER_BALANCE']) {
+      const f = failWith(new HcsPublishError('submit_failed', status));
+      expect(await publishHcsTrail(t, 7n, verified, trusted, f.reader, f.writer, fast)).toEqual({
+        status: 'interrupted',
+        submitted: [],
+        code: 'submit_failed',
+        txStatus: status,
+      });
+      expect(f.submits).toBe(1);
+    }
+  });
+
+  it('extra fields, an unexpected code or status, and throwing getters on the thrown error are not echoed', async () => {
+    const extra = Object.assign(new HcsPublishError('submit_failed', 'INVALID_SIGNATURE'), { detail: MARKER });
+    const badCode = new HcsPublishError('submit_failed', 'BUSY');
+    Object.defineProperty(badCode, 'code', { value: MARKER });
+    const badStatus = new HcsPublishError('submit_failed');
+    Object.defineProperty(badStatus, 'status', { value: MARKER });
+    const throwingStatus = new HcsPublishError('submit_failed', 'BUSY');
+    Object.defineProperty(throwingStatus, 'status', {
+      get() {
+        throw new Error(MARKER);
+      },
+    });
+    const throwingProto = new Proxy(
+      {},
+      {
+        getPrototypeOf() {
+          throw new Error(MARKER);
+        },
+      },
+    );
+    const cases: [unknown, object][] = [
+      [extra, { code: 'submit_failed', txStatus: 'INVALID_SIGNATURE' }],
+      [badCode, { code: 'submit_failed', txStatus: 'BUSY' }],
+      [badStatus, { code: 'submit_failed' }],
+      [throwingStatus, { code: 'submit_failed' }],
+      [throwingProto, { code: 'submit_failed' }],
+    ];
+    for (const [error, expected] of cases) {
+      const f = failWith(error);
+      const r = await publishHcsTrail(t, 7n, verified, trusted, f.reader, f.writer, fast);
+      expect(r).toEqual({ status: 'interrupted', submitted: [], ...expected });
+      expect(f.submits).toBe(1);
+      clean(r);
+    }
+  });
+
+  it('a receipt whose fields throw stops as malformed, without the marker and without more submissions', async () => {
+    const f = fakeHcs(trusted.topicId, key);
+    let calls = 0;
+    const writer: TopicWriter = {
+      ...f.writer,
+      submit: async () => {
+        calls++;
+        return {
+          get sequence(): number {
+            throw new Error(MARKER);
+          },
+          transactionId: '0.0.1@1.1',
+        };
+      },
+    };
+    const r = await publishHcsTrail(t, 7n, verified, trusted, f.reader, writer, fast);
+    expect(r).toEqual({ status: 'interrupted', submitted: [], code: 'malformed_receipt' });
+    expect(calls).toBe(1);
+    clean(r);
+  });
+
+  it('createHcsTopic rebuilds the error instead of rethrowing the writer object', async () => {
+    const f = fakeHcs('0.0.7777', key);
+    const thrown = Object.assign(new HcsPublishError('create_failed', MARKER), { detail: MARKER });
+    const e = await createHcsTopic({
+      ...f.writer,
+      createTopic: async () => {
+        throw thrown;
+      },
+    }).catch(x => x);
+    expect(e).toBeInstanceOf(HcsPublishError);
+    expect(e).not.toBe(thrown);
+    expect({ ...e }).toEqual({ name: 'HcsPublishError', code: 'create_failed', status: undefined });
+    clean(e);
+    const valid = await createHcsTopic({
+      ...f.writer,
+      createTopic: async () => {
+        throw new HcsPublishError('create_failed', 'INSUFFICIENT_PAYER_BALANCE');
+      },
+    }).catch(x => x);
+    expect(valid).toMatchObject({ code: 'create_failed', status: 'INSUFFICIENT_PAYER_BALANCE' });
+  });
+
+  it('createHcsTopic: a throwing topicId getter is a malformed receipt; extra key fields are not kept', async () => {
+    const f = fakeHcs('0.0.7777', key);
+    const e = await createHcsTopic({
+      ...f.writer,
+      createTopic: async () => ({
+        get topicId(): string {
+          throw new Error(MARKER);
+        },
+      }),
+    }).catch(x => x);
+    expect(e).toMatchObject({ code: 'malformed_receipt' });
+    clean(e);
+    const topic = await createHcsTopic({
+      ...f.writer,
+      submitKey: () => Object.assign({ ...key }, { note: MARKER }),
+      createTopic: async () => ({ topicId: '0.0.7777' }),
+    });
+    expect(topic).toEqual({ topicId: '0.0.7777', submitKey: key });
+    clean(topic);
+  });
+
+  it('toPublishError: anything but an HcsPublishError becomes the fallback code with no status', () => {
+    for (const x of [new Error(MARKER), { code: 'submit_failed', status: 'BUSY' }, MARKER, null, undefined]) {
+      const e = toPublishError(x, 'create_failed');
+      expect({ ...e }).toEqual({ name: 'HcsPublishError', code: 'create_failed', status: undefined });
+      clean(e);
+    }
   });
 });

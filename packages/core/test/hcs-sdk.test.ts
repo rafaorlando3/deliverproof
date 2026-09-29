@@ -1,11 +1,22 @@
-// SDK adapter with a fake executor: real Hiero SDK transactions are built and frozen,
-// nothing is sent. Keys are generated per run; none is stored in the repository.
+// SDK adapter with a fake executor: the writer builds real Hiero SDK transaction objects and
+// the fake executor only inspects them. It does not freeze, sign, serialize or call
+// sdkExecutor. The separate "offline freeze" block freezes, signs and serializes the same
+// builders without a network. None of this is a signature accepted by, or a submission to,
+// a real network. Keys are generated per run; none is stored in the repository.
 import { afterEach, describe, it, expect } from 'vitest';
 import { keccak256, type Address, type Hex } from 'viem';
-import { PrivateKey, TopicCreateTransaction, TopicMessageSubmitTransaction } from '@hiero-ledger/sdk';
+import {
+  AccountId,
+  Client,
+  PrivateKey,
+  Status,
+  TopicCreateTransaction,
+  TopicMessageSubmitTransaction,
+  Transaction,
+} from '@hiero-ledger/sdk';
 import type { NetworkResult, TrustedDeployment } from '../src/network.js';
 import { hcsMessage, validKey, type Milestone, type TopicMessage, type TopicReader } from '../src/hcs.js';
-import { HcsPublishError, createHcsTopic, publishHcsTrail } from '../src/hcs-publish.js';
+import { HEDERA_TOPIC_STATUSES, HcsPublishError, createHcsTopic, publishHcsTrail } from '../src/hcs-publish.js';
 import { buildCreateTopic, buildSubmit, sdkTopicWriter, type Executor, type ReceiptData } from '../src/hcs-sdk.js';
 
 const writers: { close(): void }[] = [];
@@ -168,7 +179,7 @@ describe('sdkTopicWriter', () => {
 });
 
 describe('publisher over the SDK writer, fake network end to end', () => {
-  it('the frozen SDK transactions carry exactly the canonical messages the verifier then accepts', async () => {
+  it('the SDK transaction objects the writer builds carry exactly the canonical messages the verifier then accepts', async () => {
     const h = (n: number) => ('0x' + n.toString(16).padStart(64, '0')) as Hex;
     const t: TrustedDeployment = {
       chainId: 296,
@@ -230,5 +241,167 @@ describe('publisher over the SDK writer, fake network end to end', () => {
     expect(topicMessages.map(m => new TextDecoder().decode(m.bytes))).toEqual(
       milestones.map(m => hcsMessage(t, 7n, m)),
     );
+  });
+});
+
+describe('status names and error sanitization at the executor boundary', () => {
+  const MARKER = 'DEADBEEF'.repeat(8);
+  const writerWith = (execute: Executor) =>
+    track(
+      sdkTopicWriter(
+        { network: 'testnet', operatorId: '0.0.4242', operatorKeyType: 'ECDSA_SECP256K1', operatorKey: hex(ecdsa()) },
+        execute,
+      ),
+    );
+  const clean = (x: unknown) => {
+    const text = JSON.stringify(x) + String(x) + (x instanceof Error ? `${x.message}${x.stack ?? ''}` : '');
+    expect(text).not.toContain(MARKER);
+  };
+
+  it('every listed status is a real Hiero SDK Status name, and SUCCESS is not an error status', () => {
+    const sdkNames = new Set(
+      Object.values(Status)
+        .filter(v => v instanceof Status)
+        .map(v => v.toString()),
+    );
+    expect(sdkNames.size).toBeGreaterThan(300);
+    for (const name of HEDERA_TOPIC_STATUSES) expect(sdkNames.has(name), name).toBe(true);
+    expect(HEDERA_TOPIC_STATUSES).not.toContain('SUCCESS');
+    expect(Object.isFrozen(HEDERA_TOPIC_STATUSES)).toBe(true);
+  });
+
+  it('a real SDK Status object on a thrown error maps to its name', async () => {
+    const w = writerWith(async () => {
+      throw Object.assign(new Error('receipt'), { status: Status.InvalidSignature });
+    });
+    await expect(w.submit('0.0.9001', new TextEncoder().encode('x'))).rejects.toMatchObject({
+      code: 'submit_failed',
+      status: 'INVALID_SIGNATURE',
+    });
+  });
+
+  it('unlisted names, throwing getters and throwing toString never escape, from submit or createTopic', async () => {
+    const outcomes: (() => unknown)[] = [
+      () => {
+        throw Object.assign(new Error(MARKER), { status: { toString: () => MARKER } });
+      },
+      () => {
+        throw Object.assign(new Error(MARKER), { status: MARKER });
+      },
+      () => {
+        const e = new Error(MARKER);
+        Object.defineProperty(e, 'status', {
+          get() {
+            throw new Error(MARKER);
+          },
+        });
+        throw e;
+      },
+      () => {
+        throw Object.assign(new Error(MARKER), {
+          status: {
+            toString() {
+              throw new Error(MARKER);
+            },
+          },
+        });
+      },
+      () => {
+        throw new Proxy(
+          {},
+          {
+            get() {
+              throw new Error(MARKER);
+            },
+          },
+        );
+      },
+      () => ({ status: MARKER, transactionId: '0.0.4242@1.1', topicId: null, sequence: null }),
+    ];
+    for (const outcome of outcomes) {
+      const w = writerWith(async () => outcome() as ReceiptData);
+      const sent = await w.submit('0.0.9001', new TextEncoder().encode('x')).catch(x => x);
+      expect(sent).toBeInstanceOf(HcsPublishError);
+      expect({ ...sent }).toEqual({ name: 'HcsPublishError', code: 'submit_failed', status: undefined });
+      clean(sent);
+      const created = await w.createTopic('DeliverProof.hcs.v1').catch(x => x);
+      expect(created).toBeInstanceOf(HcsPublishError);
+      expect({ ...created }).toEqual({ name: 'HcsPublishError', code: 'create_failed', status: undefined });
+      clean(created);
+    }
+  });
+
+  it('a success receipt with throwing fields or a bad transaction id is malformed, without the marker', async () => {
+    const throwing = writerWith(async () => ({
+      status: 'SUCCESS',
+      transactionId: '0.0.4242@1.1',
+      topicId: '0.0.9001',
+      get sequence(): number {
+        throw new Error(MARKER);
+      },
+    }));
+    const e = await throwing.submit('0.0.9001', new TextEncoder().encode('x')).catch(x => x);
+    expect(e).toMatchObject({ code: 'malformed_receipt', status: undefined });
+    clean(e);
+    const badId = writerWith(async () => ({ status: 'SUCCESS', transactionId: MARKER, topicId: null, sequence: 3 }));
+    const e2 = await badId.submit('0.0.9001', new TextEncoder().encode('x')).catch(x => x);
+    expect(e2).toMatchObject({ code: 'malformed_receipt' });
+    clean(e2);
+  });
+
+  it('a config whose fields throw is refused as writer_unavailable, without the marker', () => {
+    const config = {
+      network: 'testnet',
+      operatorId: '0.0.4242',
+      operatorKeyType: 'ECDSA_SECP256K1',
+      get operatorKey(): string {
+        throw new Error(MARKER);
+      },
+    } as unknown as Parameters<typeof sdkTopicWriter>[0];
+    let e: unknown;
+    try {
+      sdkTopicWriter(config);
+    } catch (x) {
+      e = x;
+    }
+    expect(e).toMatchObject({ code: 'writer_unavailable' });
+    clean(e);
+  });
+});
+
+describe('offline freeze, sign and serialize (no network)', () => {
+  // Freezing needs only the operator id and the static testnet node list; nothing is sent.
+  // This checks the SDK objects survive freeze/sign/bytes, not that a network accepts them.
+  it('topic creation and submission freeze with the operator, carry its signature and round-trip through bytes', async () => {
+    const k = ecdsa();
+    const client = Client.forTestnet({ scheduleNetworkUpdate: false });
+    client.setOperator(AccountId.fromString('0.0.4242'), k);
+    try {
+      const create = buildCreateTopic(k, 'DeliverProof.hcs.v1').freezeWith(client);
+      await create.sign(k);
+      const createBack = Transaction.fromBytes(create.toBytes());
+      expect(createBack).toBeInstanceOf(TopicCreateTransaction);
+      const c = createBack as TopicCreateTransaction;
+      expect(c.submitKey?.toString()).toBe(k.publicKey.toString());
+      expect(c.adminKey).toBeNull();
+      expect(c.topicMemo).toBe('DeliverProof.hcs.v1');
+      expect(c.transactionId?.accountId?.toString()).toBe('0.0.4242');
+      expect(k.publicKey.verifyTransaction(c)).toBe(true);
+      expect(ecdsa().publicKey.verifyTransaction(c)).toBe(false);
+
+      const bytes = new TextEncoder().encode('{"v":1}');
+      const submit = buildSubmit('0.0.5005', bytes).freezeWith(client);
+      await submit.sign(k);
+      const submitBack = Transaction.fromBytes(submit.toBytes());
+      expect(submitBack).toBeInstanceOf(TopicMessageSubmitTransaction);
+      const m = submitBack as TopicMessageSubmitTransaction;
+      expect(m.topicId?.toString()).toBe('0.0.5005');
+      expect(Array.from(m.message ?? [])).toEqual(Array.from(bytes));
+      expect(k.publicKey.verifyTransaction(m)).toBe(true);
+      const serialized = Buffer.from(submit.toBytes()).toString('hex');
+      expect(serialized).not.toContain(k.toStringRaw());
+    } finally {
+      client.close();
+    }
   });
 });
