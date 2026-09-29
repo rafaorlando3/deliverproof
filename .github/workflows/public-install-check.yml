@@ -17,11 +17,11 @@ on:
       expected_sha:
         description: 'Full SHA that main of the template repository must have before and after the install'
         required: true
-        default: 'e43e9702c581fb26a776c802a272d5f9b4cd627b'
+        default: '582022e09f191bed702d74afea501dba26412c3d'
       cli_version:
         description: 'create-scaffold-hbar version: latest or x.y.z'
         required: true
-        default: 'latest'
+        default: '0.4.1'
 
 permissions:
   contents: read
@@ -32,8 +32,8 @@ concurrency:
 
 env:
   TEMPLATE_REPO: rafaorlando3/deliverproof
-  EXPECTED_SHA: ${{ inputs.expected_sha || 'e43e9702c581fb26a776c802a272d5f9b4cd627b' }}
-  CLI_VERSION: ${{ inputs.cli_version || 'latest' }}
+  EXPECTED_SHA: ${{ inputs.expected_sha || '582022e09f191bed702d74afea501dba26412c3d' }}
+  CLI_VERSION: ${{ inputs.cli_version || '0.4.1' }}
   NODE_VERSION: '22.22.2'
 
 defaults:
