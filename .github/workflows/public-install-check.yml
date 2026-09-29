@@ -1,7 +1,9 @@
 # Public install check for the DeliverProof Scaffold-HBAR template.
 #
 # Runs the official create-scaffold-hbar CLI against the public repository on a
-# GitHub-hosted runner, then runs the documented checks in the generated app.
+# GitHub-hosted runner, then runs the documented checks in the generated app,
+# including lint with zero warnings allowed, and finally boots the production
+# app on 127.0.0.1 and checks its HTTP responses.
 # It uses no secrets, deploys nothing, uploads nothing to IPFS and never uses
 # the CLI's local template override. It lives only on the validation branch:
 # the push that publishes this branch starts the run (workflow_dispatch alone
@@ -17,7 +19,7 @@ on:
       expected_sha:
         description: 'Full SHA that main of the template repository must have before and after the install'
         required: true
-        default: '02dd5182ab21b9398861a419fe9ed825f39b2438'
+        default: '717442e78e4c406e70bda79acf61274fcb74aee9'
       cli_version:
         description: 'create-scaffold-hbar version: latest or x.y.z'
         required: true
@@ -32,9 +34,10 @@ concurrency:
 
 env:
   TEMPLATE_REPO: rafaorlando3/deliverproof
-  EXPECTED_SHA: ${{ inputs.expected_sha || '02dd5182ab21b9398861a419fe9ed825f39b2438' }}
+  EXPECTED_SHA: ${{ inputs.expected_sha || '717442e78e4c406e70bda79acf61274fcb74aee9' }}
   CLI_VERSION: ${{ inputs.cli_version || '0.4.1' }}
   NODE_VERSION: '22.22.2'
+  NEXT_TELEMETRY_DISABLED: '1'
 
 defaults:
   run:
@@ -96,6 +99,8 @@ jobs:
         id: cli
         run: |
           set -uo pipefail
+          # shell: bash runs with -e; turn it off so the log is sanitized and the exit recorded.
+          set +e
           E="$GITHUB_WORKSPACE/evidence"
           sanitize() {
             sed -E \
@@ -167,8 +172,11 @@ jobs:
           cat "$E/11-template-vs-generated.txt"
 
       - name: Run the documented checks in the generated app
+        id: checks
         run: |
           set -uo pipefail
+          # shell: bash runs with -e; turn it off so every check runs and every log is sanitized.
+          set +e
           E="$GITHUB_WORKSPACE/evidence"
           sanitize() {
             sed -E \
@@ -180,7 +188,7 @@ jobs:
           cd "$RUNNER_TEMP/gen/deliverproof-app"
           fail=0
           : > "$E/13-checks.txt"
-          for s in check core:test hardhat:test next:build chain:test; do
+          for s in check next:lint core:test hardhat:test next:build chain:test; do
             n="14-${s//:/-}"
             start=$(date +%s)
             npm run "$s" > "$E/$n.raw" 2>&1
@@ -194,6 +202,151 @@ jobs:
             [ "$rc" -eq 0 ] || fail=1
           done
           exit "$fail"
+
+      - name: Boot the production app on 127.0.0.1 and check its responses
+        id: boot
+        if: ${{ !cancelled() && steps.cli.outcome == 'success' }}
+        timeout-minutes: 5
+        run: |
+          set -uo pipefail
+          # GitHub runs `shell: bash` with -e; every check below handles its own status.
+          set +e
+          E="$GITHUB_WORKSPACE/evidence"
+          mkdir -p "$E"
+          APP="$RUNNER_TEMP/gen/deliverproof-app"
+          OUT="$E/17-boot-check.txt"
+          RAW="$RUNNER_TEMP/boot-server.raw"
+          PORT=3000
+          BASE="http://127.0.0.1:$PORT"
+          TITLE='<title>DeliverProof · Verify before approval</title>'
+          PID=""
+          started=$(date +%s)
+          : > "$OUT"
+          note() { echo "$*" | tee -a "$OUT"; }
+          sanitize() {
+            sed -E \
+              -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' \
+              -e 's/([Pp]rivate[ _-]?[Kk]ey[^0-9A-Fa-f]{0,20})(0x)?[0-9A-Fa-f]{64}/\1[REDACTED]/g' \
+              -e 's/(gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}/[REDACTED]/g' \
+              -e 's/npm_[A-Za-z0-9]{36}/[REDACTED]/g' "$1"
+          }
+          # Live (non-zombie) members of our process group.
+          members() { ps -e -o pid=,pgid=,stat= | awk -v g="$PID" '$2 == g && $3 !~ /^Z/ { print $1 }'; }
+          leader_alive() { [ -n "$PID" ] && ps -o stat= -p "$PID" 2>/dev/null | grep -qv '^Z'; }
+          cleanup() {
+            rc=$?
+            trap - EXIT INT TERM
+            if [ -n "$PID" ]; then
+              if [ -n "$(members)" ]; then
+                kill -TERM -- "-$PID" 2>/dev/null || true
+                for _ in $(seq 1 60); do [ -z "$(members)" ] && break; sleep 0.25; done
+                if [ -n "$(members)" ]; then
+                  note "cleanup: group $PID ignored SIGTERM for 15s, sending SIGKILL"
+                  kill -KILL -- "-$PID" 2>/dev/null || true
+                  for _ in $(seq 1 20); do [ -z "$(members)" ] && break; sleep 0.25; done
+                fi
+              fi
+              wait "$PID" 2>/dev/null || true
+              if (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; then
+                note "::error::cleanup: something still answers on 127.0.0.1:$PORT"
+                rc=1
+              else
+                note "cleanup: port $PORT released"
+              fi
+              left=$(members | tr '\n' ' ')
+              if [ -n "$left" ]; then
+                note "::error::cleanup: processes still alive in group $PID: $left"
+                rc=1
+              else
+                note "cleanup: process group $PID has no live member"
+              fi
+            fi
+            if [ -f "$RAW" ]; then
+              sanitize "$RAW" > "$E/16-boot-server.log"
+              rm -f "$RAW"
+              echo "::group::next:start output (sanitized)"
+              cat "$E/16-boot-server.log"
+              echo "::endgroup::"
+            fi
+            note "boot_seconds=$(( $(date +%s) - started ))"
+            note "boot_exit=$rc"
+            exit "$rc"
+          }
+          trap cleanup EXIT
+          trap 'note "interrupted by SIGINT"; exit 130' INT
+          trap 'note "interrupted by SIGTERM"; exit 143' TERM
+          fail() { note "::error::$*"; exit 1; }
+
+          cd "$APP" || fail "generated app not found at $APP"
+          test -f packages/nextjs/.next/BUILD_ID || fail "no production build (packages/nextjs/.next/BUILD_ID); next:build must pass first"
+          note "next_build_id=$(cat packages/nextjs/.next/BUILD_ID)"
+          note "port=$PORT host=127.0.0.1"
+          # Something already answering on the port would make any 200 meaningless.
+          if (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; then
+            fail "port $PORT on 127.0.0.1 is already in use before the app starts"
+          fi
+
+          # setsid makes the npm wrapper the leader of a new process group (PGID = PID),
+          # so cleanup can stop npm, its shells and the Next server together.
+          PORT="$PORT" setsid npm run next:start > "$RAW" 2>&1 < /dev/null &
+          PID=$!
+          pgid=""
+          for _ in $(seq 1 50); do
+            pgid=$(ps -o pgid= -p "$PID" 2>/dev/null | tr -d ' ')
+            [ "$pgid" = "$PID" ] && break
+            sleep 0.1
+          done
+          [ "$pgid" = "$PID" ] || fail "started process $PID did not become its own group leader (pgid=${pgid:-none})"
+          note "server_pid=$PID pgid=$pgid"
+
+          ready=""
+          for _ in $(seq 1 120); do
+            leader_alive || fail "next:start exited before answering (see 16-boot-server.log)"
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 2 --max-time 5 "$BASE/" 2>/dev/null) || code=000
+            if [ "$code" = "200" ]; then ready=yes; break; fi
+            sleep 0.5
+          done
+          [ -n "$ready" ] || fail "no HTTP 200 on $BASE/ within the readiness limit (last status $code)"
+          note "ready_after_seconds=$(( $(date +%s) - started ))"
+
+          # The listening socket must belong to our process group, not another service.
+          porthex=$(printf '%04X' "$PORT")
+          inode=$(awk -v p="0100007F:$porthex" '$2 == p && $4 == "0A" { print $10; exit }' /proc/net/tcp)
+          [ -n "$inode" ] || fail "no IPv4 listener on 127.0.0.1:$PORT in /proc/net/tcp"
+          owner=""
+          for p in $(members); do
+            for fd in "/proc/$p/fd/"*; do
+              if [ "$(readlink "$fd" 2>/dev/null)" = "socket:[$inode]" ]; then owner=$p; break 2; fi
+            done
+          done
+          [ -n "$owner" ] || fail "listener on 127.0.0.1:$PORT (inode $inode) is not owned by process group $PID"
+          note "listener_owner_pid=$owner cmd=$(ps -o args= -p "$owner" | cut -c1-120)"
+
+          B="$RUNNER_TEMP/boot-body.html"
+          H="$RUNNER_TEMP/boot-headers.txt"
+          # No -L: a redirect is not accepted as the page.
+          code=$(curl -sS -o "$B" -D "$H" -w '%{http_code}' --max-time 10 "$BASE/") || fail "GET / failed"
+          note "get_root_status=$code bytes=$(wc -c < "$B")"
+          [ "$code" = "200" ] || fail "GET / returned $code, expected 200"
+          grep -qF "$TITLE" "$B" || fail "GET / did not contain the expected title"
+          note "root_title=expected"
+          grep -qi '^x-frame-options: *DENY' "$H" || fail "GET / lacks the app's X-Frame-Options header"
+          grep -qi '^x-content-type-options: *nosniff' "$H" || fail "GET / lacks the app's X-Content-Type-Options header"
+          note "root_security_headers=expected"
+
+          asset=$(grep -oE '/_next/static/[A-Za-z0-9_./-]+\.js' "$B" | head -n1)
+          [ -n "$asset" ] || fail "GET / referenced no /_next/static script"
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$BASE$asset") || fail "GET $asset failed"
+          note "get_static_script_status=$code path=$asset"
+          [ "$code" = "200" ] || fail "GET $asset returned $code, expected 200"
+
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$BASE/__boot-check-missing-route") || fail "GET missing route failed"
+          note "get_missing_route_status=$code"
+          [ "$code" = "404" ] || fail "an unknown route returned $code, expected 404"
+
+          leader_alive || fail "next:start exited during the checks"
+          note "server_alive_after_checks=yes"
+          note "scope=production server boot and HTTP responses only; no wallet, Hedera, HCS or IPFS flow is exercised"
 
       - name: Record the registry again
         if: always()
@@ -228,6 +381,7 @@ jobs:
             echo
             echo "Official create-scaffold-hbar CLI, public template, GitHub-hosted runner, no secrets, no override."
             echo "This run does not deploy, send a transaction or upload to IPFS."
+            echo "The boot check covers HTTP responses of the production server only, not wallet or Hedera flows."
             echo
             echo '```'
             v 01-context.txt
@@ -243,6 +397,8 @@ jobs:
             v 12-tree-summary.txt
             echo "--- documented checks"
             v 13-checks.txt
+            echo "--- production boot on 127.0.0.1"
+            v 17-boot-check.txt
             echo '```'
             echo
             echo "Full logs, file hashes and the template comparison are in the run artifact."

@@ -199,6 +199,25 @@ package-lock.json; the actual runtime remained npm@10.9.7. The other 56 source
 files matched by SHA256. This is installation evidence, not a testnet or IPFS proof.
 
 
+The HCS publisher and sanitization delta `02dd5182ab21b9398861a419fe9ed825f39b2438` were then
+installed through the same public CLI in [run 36556660288](https://github.com/rafaorlando3/deliverproof/actions/runs/36556660288).
+Node 22.22.2 and npm@10.9.7; no secrets, override, IPFS upload or public transaction.
+Install, check, core:test (113 passed/1 live-mirror test skipped), hardhat:test (38),
+next:build and chain:test (46) passed. The template main stayed at 02dd518 before
+and after installation. Artifact SHA256 `d68d1c67dab18ba0982551793604874d8c72180a30f201d44aba73ac55bf9233`
+was checked after download. The generated tree has 65 files versus 66 in the
+template: template.json omitted, three manifest metadata changes and a different
+lockfile. All other 61 files, including the eight Markdown documents present in
+02dd518, match by SHA256. The documentation recording this result was added later
+and was not regenerated through the CLI. Lint/format were not repeated in the
+public workflow. A CLI tar@6.2.1 deprecation/security warning remains.
+
+HCS is opt-in library code: constructing an adapter is not a live proof, and this
+template provides no protected operational HCS runner or UI integration. Keep
+transaction-attempt journals outside the library across runner interruptions; an
+unknown result requires reconciliation, not an automatic retry.
+
+
 ### Observed CLI 0.4.0 differences
 
 The official CLI 0.4.0 has been exercised using its local-template override in the

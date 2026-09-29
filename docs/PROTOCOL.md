@@ -63,7 +63,7 @@ transaction hash. It deliberately does not attest payment, expected chain,
 contract, event, deployment code or canonical history. Full network verification
 is a later gate; UI cannot infer payment from the helper alone.
 
-## HCS evidence trail (supplemental, verifier only)
+## HCS evidence trail (supplemental)
 
 The contract history checked by `verifyAgreement` stays the only canonical record.
 An optional Hedera Consensus Service topic can carry one message per verified
@@ -116,6 +116,10 @@ visible. A failed submission stops the run and reports what already reached
 consensus; the next run rereads the topic and continues. A rerun while the mirror is
 still behind can leave a duplicate, which the check counts and tolerates. Run one
 publisher per topic.
+
+This library does not persist transaction-attempt journals or include an operational
+runner. A protected runner must preserve attempts across interruptions and reconcile
+unknown results before another transmission. Live testnet use is still unverified.
 
 `sdkTopicWriter` (Hiero JavaScript SDK, testnet only) pays and signs with one operator
 account whose key is also the submit key. The caller reads the key from the process

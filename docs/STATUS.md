@@ -1,6 +1,68 @@
 # Status — 2026-09-29
 
-## Current integration — 2026-09-29
+## Lint and production boot gate (2026-09-29)
+
+The bounty's eliminatory checks include lint and a booting app whose core routes
+return OK. Public run 36556660288 covered neither. This commit fixes the single
+`react-hooks/exhaustive-deps` warning: the unmount cleanup bumped the app-owned
+`epoch` counter with `++` and now uses `+= 1`, the same operation on a number,
+which the rule recognizes as a ref managed by the app. No rule is disabled, nothing
+is suppressed, and the live counter is still incremented on unmount. `next:lint`
+now fails on any warning (`eslint . --max-warnings 0`), and the CLI outro lists
+lint and the production start.
+
+Cloud checks before publication, not the public run: Node 22.22.2, npm@10.9.7,
+lint with 0 errors and 0 warnings, types, next build, core 113 passed and 1 skipped,
+Hardhat 38, chain 46, and a production start on 127.0.0.1 answering 200 with the
+app title. The public workflow on validation/public-install adds lint and that boot
+check to the CLI-generated app. Its run over this exact SHA is recorded outside this
+tree; a later commit does not inherit it. The boot check covers HTTP responses only,
+not wallet, Hedera, HCS or IPFS flows.
+
+## Current HCS publisher integration — 2026-09-29
+
+Reviewed original commits 86d4a829b901dfe16d4ddff2a76a9712d63e8780 and
+02dd5182ab21b9398861a419fe9ed825f39b2438 are public. The latter closes the review's
+error-boundary findings: fixed code/status allowlists, guarded reads and rebuilt
+errors/receipts. It adds a core publisher plus a testnet Hiero SDK adapter, with
+canonical contract history still authoritative. No HCS UI or protected operational
+runner is included, and no topic, message or other transaction was sent to Hedera.
+
+Supplied cloud evidence on exact source 02dd518: Node 22.22.2, npm@10.9.7, clean
+install/type/build/format success, core 113 passed+1 skipped, Hardhat 38, chain 46;
+existing lint warning retained. The HCS subset also passed 41/41 in a networkless
+namespace. Offline freeze/sign/serialization tests do not prove SDK transmission
+or network acceptance. Node 20/24 were not repeated for this increment.
+
+Independent public CLI install: [36556660288](https://github.com/rafaorlando3/deliverproof/actions/runs/36556660288),
+workflow 6757cf35dc5d58f368daacfa5847ba7e1bc67c44 on validation/public-install,
+CLI 0.4.1, Node 22.22.2, npm@10.9.7. Main was 02dd518 before and after.
+CLI exit 0; check, core:test (113+1 skipped), hardhat:test (38), next:build and
+chain:test (46) all exit 0. The skipped opt-in live mirror test is not a live
+HCS success; no testnet secret or transaction was used. Lint/format were not
+repeated by the public workflow. The CLI retains its tar@6.2.1 warning.
+
+Artifact SHA256 `d68d1c67dab18ba0982551793604874d8c72180a30f201d44aba73ac55bf9233`,
+20 evidence files; digest checked after download. The 65 generated files were
+compared with 66 source files: template.json omitted, three manifests changed
+only packageManager metadata, lockfile changed, remaining 61 files (including
+eight Markdown files) byte-identical by SHA256. Registry version/integrity
+unchanged before/after. An unauthenticated public source archive also matched
+all 66 reviewed files.
+
+This follow-up documentation edit records these results, corrects the README's
+obsolete publisher limitation and marks the operator journal boundary. It changes
+no executable source, configuration, dependency, lockfile or test from 02dd518.
+The new Markdown bytes were reviewed statically, not regenerated through the CLI.
+
+Still pending: own testnet deployment and lifecycle, public IPFS retrieval, live
+HCS proof and final bounty submission. A protected runner and owner approval
+remain required before real testnet operations. No project, installer or test
+was executed on the Mac. Historical sections below retain their exact-source
+acceptance boundaries.
+
+
+## Previous verifier integration — 2026-09-29
 
 Reviewed documentation candidates aaa9c03, bddf04d and f02b96f are integrated.
 The README qualifies the deployment journal as local to a preserved checkout,
@@ -400,7 +462,8 @@ pending. No competition submission or public deployment has been made.
 Historical note, before 2026-09-29: there was no public repo then. The current
 state is at the top of this file. Still true today: no deployment, paid service,
 production money or competition submission.
-Current executable source, configuration and lockfile match tested 15c65ba.
+At that historical checkpoint, executable source, configuration and lockfile
+matched tested 15c65ba. The current HCS increment is recorded at the top.
 The Node 20 correction changes test location and runtime metadata only; the
 previously accepted UI-01/02/03 and lifecycle evidence remains at its recorded
 boundary. Real Hedera/IPFS and competition readiness remain unverified.
