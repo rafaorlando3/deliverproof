@@ -7,8 +7,8 @@ DeliverProof is an escrow for one buyer, one supplier and one file. The supplier
 Anyone can check an agreement without a wallet. The verifier replays the contract's history from its public deployment, checks every event and receipt, and reads the stored state at one block. When the data it needs is missing it answers `inconclusive`. It never guesses a success.
 
 > **Status: public source template, not yet a live Hedera demo.**
-> A clean install of source `582022e` through the official CLI on a GitHub-hosted
-> runner is recorded ([run 36544715934](https://github.com/rafaorlando3/deliverproof/actions/runs/36544715934)).
+> A clean install of source `02dd518` through the official CLI on a GitHub-hosted
+> runner is recorded ([run 36556660288](https://github.com/rafaorlando3/deliverproof/actions/runs/36556660288)).
 > The Hedera testnet deployment and public IPFS retrieval are still pending; the
 > [evidence table](#public-evidence) is filled only with verified public links.
 > The shipped deployment manifest is `null`, so a fresh app shows a clearly labelled,
@@ -55,7 +55,7 @@ npm run next:start
 
 Open http://127.0.0.1:3000 (`npm run next:dev` for development). With the stock `null` manifest you see the disabled source preview. With a reviewed deployment manifest installed, enter an agreement number and press **Verify agreement**: the page shows the state, participants, deposit, snapshot block and checked event history without connecting a wallet. There is no public contract address or sample agreement number yet.
 
-The install above is recorded for source `582022e09f191bed702d74afea501dba26412c3d`: CLI 0.4.1 on a GitHub-hosted runner with Node 22.22.2 and npm@10.9.7, no secrets and no template override ([run 36544715934](https://github.com/rafaorlando3/deliverproof/actions/runs/36544715934)). The install and the `check`, `core:test` (72 passed, 1 live-mirror test skipped), `hardhat:test` (38), `next:build` and `chain:test` (45) scripts exited 0. All eight Markdown files matched the source exactly. The CLI removed `template.json` and changed the lockfile and package-manager metadata in three manifests; see [INSTALL](docs/INSTALL.md#external-scaffold-hbar-template-gate). Later commits do not inherit this execution result.
+The install above is recorded for source `02dd5182ab21b9398861a419fe9ed825f39b2438`: CLI 0.4.1 on a GitHub-hosted runner with Node 22.22.2 and npm@10.9.7, no secrets and no template override ([run 36556660288](https://github.com/rafaorlando3/deliverproof/actions/runs/36556660288)). The install and the `check`, `core:test` (113 passed, 1 live-mirror test skipped), `hardhat:test` (38), `next:build` and `chain:test` (46) scripts exited 0. All eight Markdown files matched the source exactly. The CLI removed `template.json` and changed the lockfile and package-manager metadata in three manifests; see [INSTALL](docs/INSTALL.md#external-scaffold-hbar-template-gate). Later commits do not inherit this execution result.
 
 ### Run the app against a local chain
 
@@ -105,7 +105,7 @@ The full protocol, including the commitment encoding and limits, is in [docs/PRO
 - **Log limits.** `eth_getLogs` refuses ranges over 7 days (`-32004`). The verifier reads history in 6-day windows. A result that is too large (`-32011`, mirror node pagination) counts as a failed read, which is reported as `inconclusive` and never as a partial history.
 - **Addresses.** A contract created by an Ethereum transaction has an EVM address (not long-zero) in the receipt and in its logs. The verifier checks that address against the reviewed deployment.
 - **History.** State is read at one fixed block with historical `eth_call`, and receipts are checked against the block hash from `eth_getBlockByNumber`.
-- **Optional HCS cross-check.** The core can compare a protected topic with verified contract events, including transaction hash and log index. A message mined after the contract snapshot requires a fresh read. This supplemental check never changes the contract verdict; a publisher and UI integration are not included yet. See [the HCS protocol](docs/PROTOCOL.md#hcs-evidence-trail-supplemental-verifier-only).
+- **Optional HCS cross-check.** The core can compare a protected topic with verified contract events, including transaction hash and log index. A message mined after the contract snapshot requires a fresh read. This supplemental check never changes the contract verdict; the core also includes an opt-in publisher and a testnet SDK adapter. UI integration and a protected operational runner are not included yet; no live HCS transaction has been demonstrated. See [the HCS protocol](docs/PROTOCOL.md#hcs-evidence-trail-supplemental).
 
 These behaviors are covered by local tests; public relay samples from `testnet.hashio.io` concern third-party contracts. The checks that still need our own chain-296 deployment are listed in [STATUS](docs/STATUS.md).
 
@@ -156,7 +156,7 @@ links from our own testnet run. A submitted hash alone does not count.
 | Required evidence | Current state |
 | --- | --- |
 | Public source repository | Done: https://github.com/rafaorlando3/deliverproof |
-| Fresh external CLI installation on a clean runner | Done for source `582022e`: [run 36544715934](https://github.com/rafaorlando3/deliverproof/actions/runs/36544715934), evidence artifact sha256 `a6615b2e50837e85ab618edba6bf21457ac056dc31d182e763b7273b0fbe9bea` |
+| Fresh external CLI installation on a clean runner | Done for source `02dd518`: [run 36556660288](https://github.com/rafaorlando3/deliverproof/actions/runs/36556660288), evidence artifact sha256 `d68d1c67dab18ba0982551793604874d8c72180a30f201d44aba73ac55bf9233` |
 | Contract address, runtime hash and canonical deployment receipt | Pending |
 | First agreement creation and exact deposit (tinybar × 10^10 in RPC) | Pending |
 | Delivery commitment, preserved-root CID and public CAR retrieval | Pending |
@@ -168,15 +168,17 @@ links from our own testnet run. A submitted hash alone does not count.
 
 | Suite | Command | Checks |
 | --- | --- | --- |
-| Core (vitest) | `npm run core:test` | 72 passed, 1 skipped on 76b989d: commitments, CAR limits and tampering, verifier codes, log windows and supplemental HCS checks |
-| Contract (Hardhat) | `npm run hardhat:test` | 38 passed on 76b989d: deadlines, exact deposit, credits and withdrawal, reentrancy, liability invariant, deploy journal and recovery |
-| Chain (vitest + local node) | `npm run chain:test` | 45 passed on 76b989d: Solidity/TypeScript commitment vectors, reorgs, missing logs, wrong contract, unit scaling, read failures and HCS snapshot races |
+| Core (vitest) | `npm run core:test` | 113 passed, 1 skipped on 02dd518: commitments, CAR limits and tampering, verifier codes, log windows, supplemental HCS checks and publisher error/receipt handling |
+| Contract (Hardhat) | `npm run hardhat:test` | 38 passed on 02dd518: deadlines, exact deposit, credits and withdrawal, reentrancy, liability invariant, deploy journal and recovery |
+| Chain (vitest + local node) | `npm run chain:test` | 46 passed on 02dd518: Solidity/TypeScript commitment vectors, reorgs, missing logs, wrong contract, unit scaling, read failures and HCS snapshot races |
 
-The counts above come from reviewed cloud logs on Node 22.22.2 for 76b989d.
+The counts above come from reviewed cloud logs on Node 22.22.2 for 02dd518.
 The executable source, configuration, lockfile and tests in this integration match
 that candidate byte for byte; the integration also updates documentation. Node 20
-and 24 were not rerun for HCS. The public CLI installation of 582022e independently produced the same test
-counts on Node 22.22.2; it did not repeat lint or the formatter. See [STATUS](docs/STATUS.md) for the evidence boundaries.
+and 24 were not rerun for HCS. The public CLI installation of 02dd518 independently produced the same test
+counts on Node 22.22.2; it did not repeat lint or the formatter. The subsequent
+documentation update changes no executable file, test, configuration or lockfile;
+its new Markdown bytes were not regenerated through the CLI. See [STATUS](docs/STATUS.md) for the evidence boundaries.
 `npm run next:lint`, `npm run next:check` before and after `npm run next:build`,
 and `npm run format:check` complete the checks. One known lint warning remains.
 Formatting excludes Markdown and evidence artifacts.
