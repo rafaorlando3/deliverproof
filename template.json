@@ -20,7 +20,7 @@
           "title": "Start with the verified scope",
           "steps": [
             {
-              "text": "Read docs/STATUS.md and docs/INSTALL.md. Testnet only. This template never creates a funded account, uploads a file or deploys automatically."
+              "text": "Read README.md (Quick start) and docs/INSTALL.md. Testnet only. This template never creates a funded account, uploads a file or deploys automatically."
             },
             { "label": "Check core types", "command": "{run:check}" },
             { "label": "Test the core and contract separately", "command": "{run:core:test}" },

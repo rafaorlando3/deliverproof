@@ -1,4 +1,4 @@
-# Formata só código e configuração. Documentos, evidências e gerados ficam como estão.
+# Format only code and configuration. Documents, evidence and generated files stay as they are.
 node_modules/
 **/node_modules/
 package-lock.json

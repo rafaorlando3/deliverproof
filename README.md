@@ -6,14 +6,14 @@ DeliverProof is an escrow for one buyer, one supplier and one file. The supplier
 
 Anyone can check an agreement without a wallet. The verifier replays the contract's history from its public deployment, checks every event and receipt, and reads the stored state at one block. When the data it needs is missing it answers `inconclusive`. It never guesses a success.
 
-> **Status: public source template, not yet a live Hedera demo.**
-> A clean install of source `02dd518` through the official CLI on a GitHub-hosted
-> runner is recorded ([run 36556660288](https://github.com/rafaorlando3/deliverproof/actions/runs/36556660288)).
-> The Hedera testnet deployment and public IPFS retrieval are still pending; the
-> [evidence table](#public-evidence) is filled only with verified public links.
+> **Status: public source template; contract deployed on Hedera testnet.**
+> Source `717442e` passed the official CLI installation and validation on a
+> GitHub-hosted runner ([run 36600616548](https://github.com/rafaorlando3/deliverproof/actions/runs/36600616548)).
+> The deployment is confirmed on [Hashscan](https://hashscan.io/testnet/transaction/0x5eeeb8fd700bbc15fe538495a804e6048b40024fb83b0c0807738d573cfdd227).
+> Both agreement paths and public IPFS retrieval are confirmed; live HCS evidence remains pending;
+> see the [public evidence](#public-evidence) and [verification status](docs/STATUS.md).
 > The shipped deployment manifest is `null`, so a fresh app shows a clearly labelled,
 > disabled source preview until a reviewed manifest is installed.
-> The [validation log](docs/STATUS.md) separates accepted evidence from candidates.
 
 ## What you get
 
@@ -39,7 +39,7 @@ Requirements:
 - git with `user.name` and `user.email` set (the Scaffold-HBAR CLI checks this).
 
 ```sh
-npx create-scaffold-hbar@latest --template rafaorlando3/deliverproof
+npm create scaffold-hbar@latest -- --template rafaorlando3/deliverproof
 ```
 
 Select Next.js, Hardhat, testnet and the package manager npm. Then:
@@ -53,9 +53,9 @@ npm run next:build
 npm run next:start
 ```
 
-Open http://127.0.0.1:3000 (`npm run next:dev` for development). With the stock `null` manifest you see the disabled source preview. With a reviewed deployment manifest installed, enter an agreement number and press **Verify agreement**: the page shows the state, participants, deposit, snapshot block and checked event history without connecting a wallet. There is no public contract address or sample agreement number yet.
+Open http://127.0.0.1:3000 (`npm run next:dev` for development). With the stock `null` manifest you see the disabled source preview. With a reviewed deployment manifest installed, enter an agreement number and press **Verify agreement**: the page shows the state, participants, deposit, snapshot block and checked event history without connecting a wallet. The public testnet contract is listed in the evidence table below. Agreements 1 (approval and supplier withdrawal) and 2 (refund and buyer withdrawal) have the public receipts below. The verifier export is still pending; the template deliberately ships without the operational manifest.
 
-The install above is recorded for source `02dd5182ab21b9398861a419fe9ed825f39b2438`: CLI 0.4.1 on a GitHub-hosted runner with Node 22.22.2 and npm@10.9.7, no secrets and no template override ([run 36556660288](https://github.com/rafaorlando3/deliverproof/actions/runs/36556660288)). The install and the `check`, `core:test` (113 passed, 1 live-mirror test skipped), `hardhat:test` (38), `next:build` and `chain:test` (46) scripts exited 0. All eight Markdown files matched the source exactly. The CLI removed `template.json` and changed the lockfile and package-manager metadata in three manifests; see [INSTALL](docs/INSTALL.md#external-scaffold-hbar-template-gate). Later commits do not inherit this execution result.
+The recorded public install used source `717442e78e4c406e70bda79acf61274fcb74aee9`, CLI 0.4.1, Node 22.22.2 and npm 10.9.7, without secrets or a template override ([run 36600616548](https://github.com/rafaorlando3/deliverproof/actions/runs/36600616548)). Installation, all ten required validation commands and the production HTTP boot check passed. Core: 113 passed and 1 opt-in live mirror test skipped; contract: 38 passed; chain: 46 passed. These are recorded results for that source, not proof that future revisions passed. The CLI omits `template.json` and transforms the lockfile and package-manager metadata in three manifests; see [INSTALL](docs/INSTALL.md#external-scaffold-hbar-template-gate). The HTTP boot check does not exercise wallets or live Hedera, IPFS or HCS flows.
 
 ### Run the app against a local chain
 
@@ -105,9 +105,9 @@ The full protocol, including the commitment encoding and limits, is in [docs/PRO
 - **Log limits.** `eth_getLogs` refuses ranges over 7 days (`-32004`). The verifier reads history in 6-day windows. A result that is too large (`-32011`, mirror node pagination) counts as a failed read, which is reported as `inconclusive` and never as a partial history.
 - **Addresses.** A contract created by an Ethereum transaction has an EVM address (not long-zero) in the receipt and in its logs. The verifier checks that address against the reviewed deployment.
 - **History.** State is read at one fixed block with historical `eth_call`, and receipts are checked against the block hash from `eth_getBlockByNumber`.
-- **Optional HCS cross-check.** The core can compare a protected topic with verified contract events, including transaction hash and log index. A message mined after the contract snapshot requires a fresh read. This supplemental check never changes the contract verdict; the core also includes an opt-in publisher and a testnet SDK adapter. UI integration and a protected operational runner are not included yet; no live HCS transaction has been demonstrated. See [the HCS protocol](docs/PROTOCOL.md#hcs-evidence-trail-supplemental).
+- **Optional HCS cross-check.** The core can compare a protected topic with verified contract events, including transaction hash and log index. A message mined after the contract snapshot requires a fresh read. This supplemental check never changes the contract verdict; the core also includes an opt-in publisher and a testnet SDK adapter. The source template has no HCS UI integration. A protected HCS workflow exists in the separate proof repository; no live HCS transaction has been demonstrated. See [the HCS protocol](docs/PROTOCOL.md#hcs-evidence-trail-supplemental).
 
-These behaviors are covered by local tests; public relay samples from `testnet.hashio.io` concern third-party contracts. The checks that still need our own chain-296 deployment are listed in [STATUS](docs/STATUS.md).
+These behaviors are covered by local tests; public relay samples from `testnet.hashio.io` concern third-party contracts. The contract deployment is now confirmed, while its agreement lifecycle and live IPFS/HCS checks remain pending in [STATUS](docs/STATUS.md).
 
 ## Using the app with a wallet (testnet)
 
@@ -150,39 +150,30 @@ before accepting a candidate.
 
 ## Public evidence
 
-The first two rows are completed. The others are filled only with verified public
-links from our own testnet run. A submitted hash alone does not count.
+Source installation, contract deployment and both agreement paths have public evidence below. The delivered file is retrievable by CID from public IPFS gateways. Live HCS evidence and the verifier export are still pending. A queued run or submitted hash alone does not count.
 
 | Required evidence | Current state |
 | --- | --- |
 | Public source repository | Done: https://github.com/rafaorlando3/deliverproof |
-| Fresh external CLI installation on a clean runner | Done for source `02dd518`: [run 36556660288](https://github.com/rafaorlando3/deliverproof/actions/runs/36556660288), evidence artifact sha256 `d68d1c67dab18ba0982551793604874d8c72180a30f201d44aba73ac55bf9233` |
-| Contract address, runtime hash and canonical deployment receipt | Pending |
-| First agreement creation and exact deposit (tinybar × 10^10 in RPC) | Pending |
-| Delivery commitment, preserved-root CID and public CAR retrieval | Pending |
-| Buyer approval and separate supplier withdrawal receipts | Pending |
-| Second agreement refund and separate buyer withdrawal receipts | Pending |
+| Fresh external CLI installation on a clean runner | Done for source `717442e`: [run 36600616548](https://github.com/rafaorlando3/deliverproof/actions/runs/36600616548), evidence artifact sha256 `b8a8de25975b7f09598d5c64b7ed2170bb4629c5a99d291135b76a1e45235978` |
+| Contract address, runtime hash and canonical deployment receipt | Confirmed: contract `0.0.10781121`, [Hashscan transaction](https://hashscan.io/testnet/transaction/0x5eeeb8fd700bbc15fe538495a804e6048b40024fb83b0c0807738d573cfdd227), [reviewed deployment manifest](https://github.com/rafaorlando3/deliverproof-testnet-proof/blob/7fbb6fc96a25d2ba549315ba64d3016ffbfaa4b2/packages/nextjs/lib/deployment.json) |
+| First agreement creation and exact deposit (tinybar × 10^10 in RPC) | Confirmed: [create](https://hashscan.io/testnet/transaction/0x189592885e9552b49216c293ab14a08b09c8c270221cad6ae5a1733feeabc532), [deposit of 0.5 test HBAR](https://hashscan.io/testnet/transaction/0xaedc448179ac2a4cddd997e2ef9811410dc2d383360da9a72523d182b3a6b457) |
+| Delivery commitment, preserved-root CID and public CAR retrieval | Confirmed: [submit](https://hashscan.io/testnet/transaction/0x176d23d3bca0fb0f80cd44e106d0e3e048be9994bc965e39e615f9912085307a) with CID `bafkreicmidb4okorv4g457l5pfygk6okbrbsgh2wtrj6qy3m645os7tjva` (101 bytes, SHA-256 `4c40c3c729d1af0dcefd7d79706579ca0c43231f569c53e8636cf73ae97e69a8`); [trustless CAR from ipfs.io](https://ipfs.io/ipfs/bafkreicmidb4okorv4g457l5pfygk6okbrbsgh2wtrj6qy3m645os7tjva?format=car) and [file from the Filebase gateway](https://ipfs.filebase.io/ipfs/bafkreicmidb4okorv4g457l5pfygk6okbrbsgh2wtrj6qy3m645os7tjva) |
+| Buyer approval and separate supplier withdrawal receipts | Confirmed: [approve](https://hashscan.io/testnet/transaction/0x4c683f724872cc56633d1679590d0645c96edc5af23ce5bf25f466eb127f94a1) of commitment `0x5a3f068179260a6ccb5f25dffa82b847e911949273567068dc4749b5a4d6ed13`, [supplier withdrawal](https://hashscan.io/testnet/transaction/0x848ba756e9046af24bc7b7df8790f2e9100123378eff63ab747d66aa60fe1707) |
+| Second agreement refund and separate buyer withdrawal receipts | Confirmed: [create](https://hashscan.io/testnet/transaction/0x4899bf3759415a0d81f1361c67c4de4722b9ea418a46cb43e2accc7d68d54f97), [deposit of 0.3 test HBAR](https://hashscan.io/testnet/transaction/0xae11b725a25a77c7e4b473197c06efb4ad024a17475ad63844cb449fd50446a1), [refund after the review deadline](https://hashscan.io/testnet/transaction/0x14660c459c7d79d6f3612d5234aab3bbab99d192dbd14a83eabcf39df2e93411), [buyer withdrawal](https://hashscan.io/testnet/transaction/0x9e739a18ce4ebf3de402684ed267c9b3d1659db5384080547a83ad9567324930) |
 | Verifier observation/export and screenshot for the same agreements | Pending |
+
+The completed [proof workflow run 36636649271](https://github.com/rafaorlando3/deliverproof-testnet-proof/actions/runs/36636649271) resumes the same proof after a nonce-read guard stopped the first attempt. It preserves the earlier transaction hashes and sends only the remaining buyer withdrawal. All assets and amounts are synthetic/testnet.
 
 ## Tests
 
-| Suite | Command | Checks |
+| Suite | Command | What it checks |
 | --- | --- | --- |
-| Core (vitest) | `npm run core:test` | 113 passed, 1 skipped on 02dd518: commitments, CAR limits and tampering, verifier codes, log windows, supplemental HCS checks and publisher error/receipt handling |
-| Contract (Hardhat) | `npm run hardhat:test` | 38 passed on 02dd518: deadlines, exact deposit, credits and withdrawal, reentrancy, liability invariant, deploy journal and recovery |
-| Chain (vitest + local node) | `npm run chain:test` | 46 passed on 02dd518: Solidity/TypeScript commitment vectors, reorgs, missing logs, wrong contract, unit scaling, read failures and HCS snapshot races |
+| Core (vitest) | `npm run core:test` | Commitments, CAR limits and tampering, verifier result codes, log windows, HCS checks and publisher error handling |
+| Contract (Hardhat) | `npm run hardhat:test` | Deadlines, exact deposit, credit and withdrawal, reentrancy, the liability invariant, deploy journal and recovery |
+| Chain (vitest and a local node) | `npm run chain:test` | Solidity and TypeScript commitment vectors, reorgs, missing logs, wrong contract, unit scaling, read failures and HCS snapshot races |
 
-The counts above come from reviewed cloud logs on Node 22.22.2 for 02dd518.
-The executable source, configuration, lockfile and tests in this integration match
-that candidate byte for byte; the integration also updates documentation. Node 20
-and 24 were not rerun for HCS. The public CLI installation of 02dd518 independently produced the same test
-counts on Node 22.22.2; it did not repeat lint or the formatter. The subsequent
-documentation update changes no executable file, test, configuration or lockfile;
-its new Markdown bytes were not regenerated through the CLI. See [STATUS](docs/STATUS.md) for the evidence boundaries.
-`npm run next:lint` (zero warnings allowed), `npm run next:check` before and after `npm run next:build`,
-and `npm run format:check` complete the checks. The former cleanup-ref lint warning is fixed in source.
-The public workflow adds lint and a production boot check on 127.0.0.1 for this commit; its result is recorded outside this tree.
-Formatting excludes Markdown and evidence artifacts.
+Also run `npm run next:lint` (zero warnings allowed), `npm run next:check`, `npm run next:build` and `npm run format:check`. Current counts and the public CI run are in [docs/STATUS.md](docs/STATUS.md).
 
 ## Limits
 
@@ -192,9 +183,11 @@ Formatting excludes Markdown and evidence artifacts.
 - There is no arbitration. Silence never pays the supplier; the buyer can refund after the review deadline even if a file was submitted.
 - Direct EOA participants only; general smart-wallet/forwarding-contract support is not claimed.
 - The deployment journal protects one preserved checkout. Storage durability and real-network recovery still need their documented acceptance checks.
-- ESLint 9.39.5 is a recorded temporary unsupported development-tool exception; see STATUS for the separately validated replacement requirement.
+- ESLint 9.39.5 is a temporary unsupported development-tool exception; see [the replacement requirement](docs/STATUS.md#known-limits).
 
 ## AI-assisted development
+
+This template was developed with assistance from Claude and Codex. Its public history records the changes and validation evidence.
 
 See [AGENTS.md](AGENTS.md) for the invariants and checks an AI coding assistant must follow in this project.
 

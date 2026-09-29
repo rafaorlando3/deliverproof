@@ -1,7 +1,7 @@
-// Revisão do Claude (M2c): propriedade do paginador por timestamp, independente dos fixtures do Codex.
-// Cadeias aleatórias (semente fixa) com cadência irregular e saltos de vários dias. A fonte faz o papel do
-// relay: recusa faixa com mais de 7 dias (fim do bloco final menos início do inicial, com 2 s de folga
-// como no relay) e devolve só os logs da faixa. O resultado tem de ser exatamente os logs da cadeia.
+// Property test for the timestamp log-window pager, independent of the other fixtures.
+// Random chains (fixed seed) with irregular cadence and multi-day gaps. The source plays the
+// relay: it rejects ranges over 7 days (last block end minus first block start, with 2 s of slack
+// as in the relay) and returns only the logs in range. The result must be exactly the chain's logs.
 import { describe, it, expect } from 'vitest';
 import type { Hex } from 'viem';
 import { logsInTimeWindows } from '../src/log-windows.js';
@@ -62,8 +62,8 @@ function source(c: ReturnType<typeof chain>, opts: { failFrom?: bigint } = {}) {
   };
 }
 
-describe('Claude: paginador por timestamp em 300 cadeias aleatórias', () => {
-  it('cobre cada bloco uma vez, em ordem, com toda janela aceita pelo relay, e devolve exatamente os logs', async () => {
+describe('timestamp log-window pager over 300 random chains', () => {
+  it('covers each block once, in order, with every window accepted by the relay, and returns exactly the logs', async () => {
     const rand = mulberry32(20260928);
     let windows = 0,
       gaps = 0;
@@ -83,10 +83,10 @@ describe('Claude: paginador por timestamp em 300 cadeias aleatórias', () => {
       expect(next).toBe(to + 1n);
       windows += queries.length;
     }
-    expect(gaps).toBeGreaterThan(20); // a amostra tem mesmo saltos maiores que 7 dias
+    expect(gaps).toBeGreaterThan(20); // the sample really has gaps longer than 7 days
     expect(windows).toBeGreaterThan(300);
   });
-  it('falha em qualquer janela depois da primeira: rejeita tudo, nunca devolve parte', async () => {
+  it('a failure in any window after the first rejects everything, never returns a partial result', async () => {
     const rand = mulberry32(7);
     let tried = 0;
     for (let k = 0; k < 200 && tried < 40; k++) {

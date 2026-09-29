@@ -305,7 +305,7 @@ describe('createHcsTopic', () => {
   });
 });
 
-// Regressions for the Codex review of 86d4a82: a writer is outside the trust boundary. Its
+// Regressions from the review of 86d4a82: a writer is outside the trust boundary. Its
 // errors, receipts and key are rebuilt from allowed fields, never passed through.
 describe('writer boundary: only listed codes and Hedera status names come out', () => {
   // Synthetic marker: 64 upper-case hex letters, the shape the old /^[A-Z_]{1,64}$/ accepted.

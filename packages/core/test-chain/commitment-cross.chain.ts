@@ -1,8 +1,8 @@
-// Revisão do Claude: vetor cruzado Solidity x TypeScript. O compromisso que o contrato grava
-// (abi.encode no Solidity) é byte a byte igual ao de src/delivery.ts, para vários tamanhos, tipos,
-// codecs e acordos, e o evento Submitted carrega os mesmos campos.
-// Antes ficava em packages/hardhat/test/ClaudeReview.js importando o fonte TS por type stripping,
-// o que exigia Node >= 22.18 só para a suíte do contrato. Aqui roda no vitest, em qualquer Node suportado.
+// Solidity vs TypeScript cross-check. The commitment the contract stores (abi.encode in
+// Solidity) is byte-for-byte equal to the one from src/delivery.ts, across several sizes, media types,
+// codecs and agreements, and the Submitted event carries the same fields.
+// This used to live in packages/hardhat/test/EscrowInvariants.js, importing the TS source via type stripping,
+// which required Node >= 22.18 just for the contract suite. Here it runs under vitest on any supported Node.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   createPublicClient,
@@ -68,8 +68,8 @@ async function file(text: string) {
   };
 }
 
-describe('compromisso Solidity x TypeScript', () => {
-  it('mesmos bytes nos dois lados, para vários tamanhos, tipos, codecs e acordos', async () => {
+describe('Solidity vs TypeScript commitment', () => {
+  it('same bytes on both sides across sizes, media types, codecs and agreements', async () => {
     const deployed = await mined(
       await wallet.deployContract({ account: deployer, chain: hardhat, abi: DP.abi, bytecode: DP.bytecode }),
     );

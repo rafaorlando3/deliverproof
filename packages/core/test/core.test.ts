@@ -49,7 +49,7 @@ async function fixture() {
   return { bytes, cid, delivery, car: await archive(cid, [{ cid, bytes }]), commitment: deliveryCommitment(delivery) };
 }
 
-/** Blockstore mínimo que guarda o CID exatamente como o importer o gravou (codec incluso). */
+/** Minimal blockstore that keeps the CID exactly as the importer wrote it (codec included). */
 function recordingStore() {
   const blocks: { cid: CID; bytes: Uint8Array }[] = [];
   const byKey = new Map<string, Uint8Array>();
@@ -98,9 +98,9 @@ describe('content proof', () => {
     if (result.status === 'verified') expect(result.bytes).toEqual(f.bytes);
   });
   it('reconstructs and verifies a multi-block UnixFS DAG, not a CID-as-file-hash shortcut', async () => {
-    // Claude (revisão M1): MemoryBlockstore.getAll() devolve toda chave com o codec raw (0x55), inclusive
-    // a raiz dag-pb, e o CAR montado a partir dele não tinha o bloco dag-pb. O verificador acertava ao dizer
-    // "inconclusive"; o defeito era do fixture. Aqui os blocos são gravados com o CID que o importer usou.
+    // MemoryBlockstore.getAll() returns every key with the raw codec (0x55), including the dag-pb
+    // root, so a CAR built from it lacked the dag-pb block. The verifier was right to say
+    // "inconclusive"; the fixture was at fault. Here blocks are stored with the CID the importer used.
     const f = await fixture();
     const store = recordingStore();
     let root: CID | undefined;
@@ -129,7 +129,7 @@ describe('content proof', () => {
     );
     expect(missing.status).toBe('inconclusive');
   });
-  it('CAR whose dag-pb root block is labeled raw is inconclusive (missing_block), never verified (Claude, revisão M1)', async () => {
+  it('CAR whose dag-pb root block is labeled raw is inconclusive (missing_block), never verified', async () => {
     const f = await fixture();
     const store = recordingStore();
     let root: CID | undefined;

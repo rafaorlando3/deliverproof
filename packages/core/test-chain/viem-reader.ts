@@ -1,9 +1,9 @@
-// Revisão do Claude (M2a): um ChainReader de verdade, sobre JSON-RPC via viem.
-// Não é fonte do Codex; serve de referência para o leitor do frontend.
-// `maxBlocksPerLogQuery` divide o eth_getLogs em janelas. No Hedera, o relay recusa
-// eth_getLogs com mais de 7 dias entre fromBlock e toBlock (TIMESTAMP_RANGE_TOO_LARGE),
-// mesmo com um único endereço, então um leitor sem janelas deixa de funcionar 7 dias
-// depois do deploy.
+// A real ChainReader over JSON-RPC via viem.
+// Test-only; it serves as a reference for the frontend reader.
+// `maxBlocksPerLogQuery` splits eth_getLogs into windows. On Hedera, the relay rejects
+// eth_getLogs spanning more than 7 days between fromBlock and toBlock (TIMESTAMP_RANGE_TOO_LARGE),
+// even with a single address, so a reader without windows stops working 7 days
+// after deployment.
 import { TransactionReceiptNotFoundError, numberToHex, pad, type Address, type Hex, type PublicClient } from 'viem';
 import { deliverProofAbi } from '../src/abi.js';
 import type { Agreement, ChainLog, ChainReader, ChainReceipt } from '../src/network.js';

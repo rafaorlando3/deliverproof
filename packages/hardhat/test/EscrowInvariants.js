@@ -1,15 +1,15 @@
-// Provas adicionais da revisão do Claude (M1). Independentes dos testes do Codex:
-// 1) vetor cruzado Solidity x TypeScript: movido para packages/core/test-chain/commitment-cross.chain.ts
-//    (npm run chain:test), para esta suíte não depender de Node >= 22.18 (type stripping);
-// 2) invariante de passivos sob uma sequência pseudoaleatória (semente fixa) de chamadas legítimas e
-//    indevidas, com saltos de tempo;
-// 3) compromisso de outro acordo nunca aprova este.
+// Additional escrow checks, independent of the main contract tests:
+// 1) Solidity vs TypeScript cross-check: moved to packages/core/test-chain/commitment-cross.chain.ts
+//    (npm run chain:test), so this suite does not depend on Node >= 22.18 (type stripping);
+// 2) liability invariant under a pseudo-random sequence (fixed seed) of legitimate and
+//    improper calls, with time jumps;
+// 3) another agreement's commitment never approves this one.
 const { expect } = require('chai');
 const { ethers, network } = require('hardhat');
 
 let CID, sha256;
-// Escopo: o before abaixo roda só para os testes deste arquivo, não para a suíte inteira do Hardhat.
-describe('Claude (revisão M1)', function () {
+// Scope: the before hook below runs only for this file's tests, not for the whole Hardhat suite.
+describe('Escrow invariants', function () {
   before(async function () {
     ({ CID } = await import('multiformats/cid'));
     ({ sha256 } = await import('multiformats/hashes/sha2'));
@@ -26,8 +26,8 @@ describe('Claude (revisão M1)', function () {
     };
   }
 
-  describe('Claude (revisão M1): compromisso por acordo', function () {
-    it('compromisso de outro acordo, com o mesmo arquivo, não aprova este', async function () {
+  describe('per-agreement commitment', function () {
+    it('the commitment of another agreement, for the same file, does not approve this one', async function () {
       const [buyer, supplier] = await ethers.getSigners();
       const dp = await (await ethers.getContractFactory('DeliverProof')).deploy();
       const f = await file('mesmo arquivo');
@@ -46,14 +46,14 @@ describe('Claude (revisão M1)', function () {
     });
   });
 
-  describe('Claude (revisão M1): invariante de passivos sob sequência pseudoaleatória', function () {
-    it('saldo = travado + créditos a cada passo; cada acordo paga no máximo uma vez; indevidos revertem', async function () {
+  describe('liability invariant under a pseudo-random sequence', function () {
+    it('balance = locked + credits at every step; each agreement pays at most once; improper calls revert', async function () {
       this.timeout(120000);
       const signers = await ethers.getSigners();
       const [b1, s1, b2, s2, stranger] = signers;
       const dp = await (await ethers.getContractFactory('DeliverProof')).deploy();
       const addr = await dp.getAddress();
-      // mulberry32 com semente fixa (um LCG módulo 2^31 tem bits baixos periódicos e deixava a sequência viciada)
+      // mulberry32 with a fixed seed (an LCG modulo 2^31 has periodic low bits and biased the sequence)
       let seed = 20260928 >>> 0;
       const rnd = n => {
         seed = (seed + 0x6d2b79f5) >>> 0;
@@ -84,7 +84,7 @@ describe('Claude (revisão M1)', function () {
       for (let step = 0; step < 220; step++) {
         const a = ags[rnd(ags.length)];
         const op = rnd(7);
-        // 70% das vezes quem tem o papel certo para a operação; 30% qualquer um (inclusive estranho)
+        // 70% of the time the account with the right role for the operation; 30% anyone (including a stranger)
         const st = Number((await dp.getAgreement(a.id)).state);
         const right =
           op === 0 || op === 2
@@ -120,7 +120,7 @@ describe('Claude (revisão M1)', function () {
         }
         await check();
       }
-      // no fim, todo crédito liberado pode ser sacado uma vez pelo beneficiário certo e nada sobra travado indevidamente
+      // at the end, every released credit can be withdrawn once by the right beneficiary and nothing stays wrongly locked
       for (const a of ags) {
         const st = Number((await dp.getAgreement(a.id)).state);
         if ((st === 4 || st === 5) && !(await dp.getAgreement(a.id)).withdrawn) {
@@ -134,17 +134,8 @@ describe('Claude (revisão M1)', function () {
       }
       const finals = [];
       for (const a of ags) finals.push(Number((await dp.getAgreement(a.id)).state));
-      console.log(
-        '      estados finais:',
-        finals.join(','),
-        '| pagos:',
-        ags.map(a => a.paid.toString()).join(','),
-        '| chamadas ok/revertidas:',
-        okCalls,
-        reverted,
-      );
-      expect(finals).to.include(4); // pelo menos um aprovado e sacado pelo fornecedor
-      expect(finals).to.include(5); // pelo menos um devolvido e sacado pelo comprador
+      expect(finals).to.include(4); // at least one approved and withdrawn by the supplier
+      expect(finals).to.include(5); // at least one refunded and withdrawn by the buyer
       for (const [i, a] of ags.entries()) if (finals[i] === 4 || finals[i] === 5) expect(a.paid).to.equal(a.amount);
       expect(await dp.totalCredits()).to.equal(0n);
       expect(okCalls).to.be.greaterThan(10);

@@ -1,6 +1,6 @@
-// Revisão do Claude (M2a), independente dos testes do Codex:
-// verifyAgreement contra um nó Hardhat de verdade, lido por JSON-RPC (viem), com os
-// fluxos completos e com um leitor que mente, falha ou devolve histórico parcial.
+// Independent network tests:
+// verifyAgreement against a real Hardhat node, read over JSON-RPC (viem), covering the
+// full flows and a reader that lies, fails or returns partial history.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -116,19 +116,19 @@ function events(r: NetworkResult) {
   expect(r).toMatchObject({ status: 'verified', code: 'chain_matches' });
   return r.status === 'verified' ? r.milestones.map(m => m.event) : [];
 }
-/** Leitor que repassa tudo ao nó real, trocando só o que o caso precisa. */
+/** Reader that forwards everything to the real node, overriding only what the case needs. */
 function lying(over: Partial<ChainReader>): ChainReader {
   return { ...reader(), ...over };
 }
 
-describe('âncora e código implantado', () => {
-  it('o hash do runtime do artifact compilado é o hash do código no nó', async () => {
+describe('anchor and deployed code', () => {
+  it('the compiled artifact runtime hash equals the code hash on the node', async () => {
     const t = await deploy();
     expect(keccak256((await pub.getCode({ address: t.address }))!)).toBe(t.runtimeCodeHash);
   });
 });
 
-describe('fluxo de aprovação completo, verificado a cada passo', () => {
+describe('full approval flow, verified at every step', () => {
   it('Created → Funded → Submitted → Approved → CreditAvailable → Withdrawn', async () => {
     const t = await deploy();
     const a = await create(t);
@@ -165,8 +165,8 @@ describe('fluxo de aprovação completo, verificado a cada passo', () => {
   });
 });
 
-describe('fluxos de devolução', () => {
-  it('fornecedor devolve antes de entregar; comprador saca', async () => {
+describe('refund flows', () => {
+  it('supplier refunds before delivering; buyer withdraws', async () => {
     const t = await deploy();
     const a = await create(t);
     await call(t, buyer, 'fund', [a.id], a.amount);
@@ -182,7 +182,7 @@ describe('fluxos de devolução', () => {
     expect(events(r)).toEqual(['Created', 'Funded', 'Refunded', 'CreditAvailable', 'Withdrawn']);
     if (r.status === 'verified') expect(r.delivery).toBeNull();
   });
-  it('comprador devolve depois do reviewDeadline, com entrega feita; comprador saca', async () => {
+  it('buyer refunds after reviewDeadline with a delivery submitted; buyer withdraws', async () => {
     const t = await deploy();
     const a = await create(t);
     await call(t, buyer, 'fund', [a.id], a.amount);
@@ -203,11 +203,11 @@ describe('fluxos de devolução', () => {
   });
 });
 
-describe('outro contrato e outro acordo', () => {
-  it('segunda implantação com o mesmo bytecode: cada âncora só aceita o próprio contrato', async () => {
+describe('another contract and another agreement', () => {
+  it('second deployment with the same bytecode: each anchor accepts only its own contract', async () => {
     const A = await deploy(),
       B = await deploy();
-    expect(B.runtimeCodeHash).toBe(A.runtimeCodeHash); // mesmo código: só endereço + tx de deploy distinguem
+    expect(B.runtimeCodeHash).toBe(A.runtimeCodeHash); // same code: only address + deploy tx tell them apart
     const a = await create(A, 5_000n, keccak256('0xaa'));
     const b = await create(B, 7_000n, keccak256('0xbb'));
     expect(b.id).toBe(a.id);
@@ -216,12 +216,12 @@ describe('outro contrato e outro acordo', () => {
     expect(
       await verifyAgreement({ ...B, deploymentTx: A.deploymentTx, deploymentBlock: A.deploymentBlock }, a.id, reader()),
     ).toEqual({ status: 'mismatch', code: 'deployment_mismatch' });
-    // RPC que ignora o filtro de endereço e mistura o evento real do contrato B
+    // RPC that ignores the address filter and mixes in the real event from contract B
     const bLogs = await reader().logs(B.address, b.id, B.deploymentBlock, await pub.getBlockNumber());
     const mixed = lying({ logs: async (...p) => [...(await reader().logs(...p)), ...bLogs] });
     expect(await verifyAgreement(A, a.id, mixed)).toEqual({ status: 'mismatch', code: 'wrong_event_contract' });
   });
-  it('eventos de outro acordo no mesmo contrato não entram', async () => {
+  it('events from another agreement on the same contract are excluded', async () => {
     const t = await deploy();
     const a1 = await create(t);
     const a2 = await create(t);
@@ -231,7 +231,7 @@ describe('outro contrato e outro acordo', () => {
     const mixed = lying({ logs: async (...p) => [...(await reader().logs(...p)), ...other] });
     expect(await verifyAgreement(t, a1.id, mixed)).toEqual({ status: 'mismatch', code: 'wrong_event_agreement' });
   });
-  it('financiamento forjado por um contrato que imita os eventos nunca vira verified', async () => {
+  it('funding forged by a contract that mimics the events never becomes verified', async () => {
     const t = await deploy();
     const a = await create(t);
     const { mimic } = await helpers();
@@ -267,7 +267,7 @@ describe('outro contrato e outro acordo', () => {
         state: 2,
       }),
     };
-    // 1) RPC devolve o log do imitador como está
+    // 1) RPC returns the mimic's log as is
     expect(
       await verifyAgreement(
         t,
@@ -275,7 +275,7 @@ describe('outro contrato e outro acordo', () => {
         lying({ ...claimsFunded, logs: async (...p) => [...(await reader().logs(...p)), asLog(mimic)] }),
       ),
     ).toEqual({ status: 'mismatch', code: 'wrong_event_contract' });
-    // 2) RPC reescreve o endereço do log para o contrato verdadeiro
+    // 2) RPC rewrites the log address to the real contract
     expect(
       await verifyAgreement(
         t,
@@ -286,7 +286,7 @@ describe('outro contrato e outro acordo', () => {
   });
 });
 
-describe('histórico ausente, duplicado ou fora de ordem', () => {
+describe('missing, duplicated or out-of-order history', () => {
   async function approvedAndWithdrawn() {
     const t = await deploy();
     const a = await create(t);
@@ -306,12 +306,12 @@ describe('histórico ausente, duplicado ou fora de ordem', () => {
       ) as { name: string }
     ).name;
 
-  it('ordem trocada pela RPC ainda verifica (a ordem vem de bloco e logIndex)', async () => {
+  it('order shuffled by the RPC still verifies (order comes from block and logIndex)', async () => {
     const { t, a, all } = await approvedAndWithdrawn();
     expect(events(await verifyAgreement(t, a.id, lying({ logs: async () => [...all].reverse() })))).toHaveLength(6);
   });
   it.each(['Created', 'Funded', 'Submitted', 'Approved', 'CreditAvailable', 'Withdrawn'])(
-    'sem %s: inconclusive, nunca verified',
+    'missing %s: inconclusive, never verified',
     async ev => {
       const { t, a, all } = await approvedAndWithdrawn();
       const r = await verifyAgreement(t, a.id, lying({ logs: async () => all.filter(l => nameOf(l) !== ev) }));
@@ -319,7 +319,7 @@ describe('histórico ausente, duplicado ou fora de ordem', () => {
       expect(r.code).toBe('incomplete_event_history');
     },
   );
-  it.each(['Created', 'Approved', 'Withdrawn'])('%s duplicado: inconclusive', async ev => {
+  it.each(['Created', 'Approved', 'Withdrawn'])('duplicated %s: inconclusive', async ev => {
     const { t, a, all } = await approvedAndWithdrawn();
     const dup = all.find(l => nameOf(l) === ev)!;
     expect(await verifyAgreement(t, a.id, lying({ logs: async () => [...all, { ...dup }] }))).toEqual({
@@ -327,7 +327,7 @@ describe('histórico ausente, duplicado ou fora de ordem', () => {
       code: 'duplicate_rpc_log',
     });
   });
-  it('log com transactionHash de outra transação real do acordo: não verifica', async () => {
+  it('log with the transactionHash of another real transaction of the agreement: does not verify', async () => {
     const { t, a, all } = await approvedAndWithdrawn();
     const swapped = all.map(l => (nameOf(l) === 'Approved' ? { ...l, transactionHash: all[0]!.transactionHash } : l));
     const r = await verifyAgreement(t, a.id, lying({ logs: async () => swapped }));
@@ -335,8 +335,8 @@ describe('histórico ausente, duplicado ou fora de ordem', () => {
   });
 });
 
-describe('estado do acordo e histórico de nós diferentes', () => {
-  it('getAgreement de um nó atrasado (estado real de um bloco anterior) com logs novos: inconclusive', async () => {
+describe('agreement state and history from different nodes', () => {
+  it('getAgreement from a lagging node (real state from an earlier block) with newer logs: inconclusive', async () => {
     const t = await deploy();
     const a = await create(t);
     await call(t, buyer, 'fund', [a.id], a.amount);
@@ -347,7 +347,7 @@ describe('estado do acordo e histórico de nós diferentes', () => {
     expect((await reader().agreement(t.address, a.id, s.blockNumber)).state).toBe(3);
     expect(await verifyAgreement(t, a.id, stale)).toEqual({ status: 'inconclusive', code: 'incomplete_event_history' });
   });
-  it('valor do depósito na escala do Hedera (x10^10) numa rede 31337: mismatch', async () => {
+  it('deposit value in Hedera scale (x10^10) on a 31337 network: mismatch', async () => {
     const t = await deploy();
     const a = await create(t);
     await call(t, buyer, 'fund', [a.id], a.amount);
@@ -361,14 +361,14 @@ describe('estado do acordo e histórico de nós diferentes', () => {
   });
 });
 
-describe('RPC parcial ou instável', () => {
+describe('partial or unstable RPC', () => {
   async function funded() {
     const t = await deploy();
     const a = await create(t);
     const f = await call(t, buyer, 'fund', [a.id], a.amount);
     return { t, a, fundTx: f.transactionHash, fundBlock: f.blockNumber };
   }
-  it('recibo do depósito some: inconclusive/not_found', async () => {
+  it('deposit receipt disappears: inconclusive/not_found', async () => {
     const { t, a, fundTx } = await funded();
     const r = await verifyAgreement(
       t,
@@ -377,7 +377,7 @@ describe('RPC parcial ou instável', () => {
     );
     expect(r).toEqual({ status: 'inconclusive', code: 'not_found' });
   });
-  it('getLogs, transação, código ou getAgreement caem: inconclusive/rpc_unavailable', async () => {
+  it('getLogs, transaction, code or getAgreement fail: inconclusive/rpc_unavailable', async () => {
     const { t, a } = await funded();
     const boom = async () => {
       throw new Error('ECONNRESET');
@@ -386,10 +386,10 @@ describe('RPC parcial ou instável', () => {
       expect(await verifyAgreement(t, a.id, lying(over))).toEqual({ status: 'inconclusive', code: 'rpc_unavailable' });
     }
   });
-  it('bloco de um evento antigo com outro hash (reorg): inconclusive/history_changed', async () => {
+  it('block of an older event with a different hash (reorg): inconclusive/history_changed', async () => {
     const { t, a, fundBlock } = await funded();
     const createdBlock = (await pub.getTransactionReceipt({ hash: a.hash })).blockNumber;
-    expect(createdBlock).toBeLessThan(fundBlock); // não é o bloco do snapshot, que tem checagem própria no fim
+    expect(createdBlock).toBeLessThan(fundBlock); // not the snapshot block, which has its own check at the end
     const r = await verifyAgreement(
       t,
       a.id,
@@ -402,9 +402,9 @@ describe('RPC parcial ou instável', () => {
     );
     expect(r).toEqual({ status: 'inconclusive', code: 'history_changed' });
   });
-  it('bloco do snapshot muda durante a leitura: inconclusive/history_changed', async () => {
+  it('snapshot block changes during the read: inconclusive/history_changed', async () => {
     const { t, a } = await funded();
-    await create(t); // bloco do snapshot sem evento deste acordo: só a releitura final o confere
+    await create(t); // snapshot block without an event of this agreement: only the final re-read checks it
     let latestSeen: bigint | undefined;
     const r = await verifyAgreement(
       t,
@@ -422,7 +422,7 @@ describe('RPC parcial ou instável', () => {
     );
     expect(r).toEqual({ status: 'inconclusive', code: 'history_changed' });
   });
-  it('getLogs traz o depósito, mas o recibo da transação não tem esse log: inconclusive/receipt_log_missing', async () => {
+  it('getLogs returns the deposit but the transaction receipt lacks that log: inconclusive/receipt_log_missing', async () => {
     const { t, a, fundTx } = await funded();
     const r = await verifyAgreement(
       t,
@@ -436,7 +436,7 @@ describe('RPC parcial ou instável', () => {
     );
     expect(r).toEqual({ status: 'inconclusive', code: 'receipt_log_missing' });
   });
-  it('nó atrasado em relação ao deploy: inconclusive/node_behind', async () => {
+  it('node behind the deployment: inconclusive/node_behind', async () => {
     const { t, a } = await funded();
     const r = await verifyAgreement(
       t,
@@ -450,14 +450,14 @@ describe('RPC parcial ou instável', () => {
     );
     expect(r).toEqual({ status: 'inconclusive', code: 'node_behind' });
   });
-  it('sem código no endereço: inconclusive/code_unavailable', async () => {
+  it('no code at the address: inconclusive/code_unavailable', async () => {
     const { t, a } = await funded();
     expect(await verifyAgreement(t, a.id, lying({ code: async () => undefined }))).toEqual({
       status: 'inconclusive',
       code: 'code_unavailable',
     });
   });
-  it('acordo com campo faltando: inconclusive/malformed_response', async () => {
+  it('agreement with a missing field: inconclusive/malformed_response', async () => {
     const { t, a } = await funded();
     const r = await verifyAgreement(
       t,
@@ -474,9 +474,9 @@ describe('RPC parcial ou instável', () => {
   });
 });
 
-describe('limite do eth_getLogs no relay do Hedera (7 dias por consulta)', () => {
-  // Simula a recusa do relay por largura de faixa. Aqui o limite é em blocos (5) para caber no teste;
-  // no relay o limite é tempo: TIMESTAMP_RANGE_TOO_LARGE acima de 604800 s, mesmo com um endereço só.
+describe('Hedera relay eth_getLogs limit (7 days per query)', () => {
+  // Simulates the relay rejecting a range by width. Here the limit is in blocks (5) to fit the test;
+  // on the relay the limit is time: TIMESTAMP_RANGE_TOO_LARGE above 604800 s, even with a single address.
   function limited(maxSpan: bigint): PublicClient {
     const base = createPublicClient({ chain: hardhat, transport: http(url) });
     return createPublicClient({
@@ -493,10 +493,10 @@ describe('limite do eth_getLogs no relay do Hedera (7 dias por consulta)', () =>
       }),
     }) as PublicClient;
   }
-  it('uma consulta do deploy até o último bloco falha quando a faixa passa do limite; com janelas, verifica', async () => {
+  it('a single query from deployment to the latest block fails past the limit; with windows, it verifies', async () => {
     const t = await deploy();
     const a = await create(t);
-    for (let i = 0; i < 8; i++) await create(t); // blocos extras entre o deploy e o depósito
+    for (let i = 0; i < 8; i++) await create(t); // extra blocks between deployment and deposit
     await call(t, buyer, 'fund', [a.id], a.amount);
     expect(await verifyAgreement(t, a.id, viemReader(limited(5n)))).toEqual({
       status: 'inconclusive',
@@ -513,8 +513,8 @@ describe('limite do eth_getLogs no relay do Hedera (7 dias por consulta)', () =>
   });
 });
 
-describe('M2c: janelas com timestamp real no EVM', () => {
-  it('a mesma prova com salto de oito dias falha sem janelas e passa no paginador de produção', async () => {
+describe('log windows with real EVM timestamps', () => {
+  it('the same proof with an eight-day jump fails without windows and passes with the production pager', async () => {
     const t = await deploy();
     const a = await create(t);
     await call(t, buyer, 'fund', [a.id], a.amount);
@@ -551,7 +551,7 @@ describe('M2c: janelas com timestamp real no EVM', () => {
   });
 });
 
-describe('lista do VALIDATION-M2.md: RPC que mente de forma coerente (logs e recibos iguais)', () => {
+describe('VALIDATION.md list: RPC that lies consistently (matching logs and receipts)', () => {
   async function done() {
     const t = await deploy();
     const a = await create(t);
@@ -567,7 +567,7 @@ describe('lista do VALIDATION-M2.md: RPC que mente de forma coerente (logs e rec
     };
     return keccak256(new TextEncoder().encode(`${name}(${e.inputs.map(i => i.type).join(',')})`));
   };
-  /** Troca o mesmo log em getLogs e no recibo, para a mentira passar pelas conferências de consistência. */
+  /** Swaps the same log in getLogs and in the receipt so the lie passes the consistency checks. */
   function rewrite(name: string, fn: (l: ChainLog) => ChainLog): ChainReader {
     const fix = (l: ChainLog) => (l.topics[0] === topicOf(name) ? fn({ ...l }) : l);
     return lying({
@@ -580,7 +580,7 @@ describe('lista do VALIDATION-M2.md: RPC que mente de forma coerente (logs e rec
   }
   const addrTopic = (a: Address) => ('0x' + a.slice(2).toLowerCase().padStart(64, '0')) as Hex;
   const amountData = (n: bigint) => ('0x' + n.toString(16).padStart(64, '0')) as Hex;
-  it('crédito para o beneficiário errado: mismatch/credit_mismatch', async () => {
+  it('credit to the wrong beneficiary: mismatch/credit_mismatch', async () => {
     const { t, a } = await done();
     expect(
       await verifyAgreement(
@@ -590,7 +590,7 @@ describe('lista do VALIDATION-M2.md: RPC que mente de forma coerente (logs e rec
       ),
     ).toEqual({ status: 'mismatch', code: 'credit_mismatch' });
   });
-  it('crédito com valor diferente: mismatch/credit_mismatch', async () => {
+  it('credit with a different amount: mismatch/credit_mismatch', async () => {
     const { t, a } = await done();
     expect(
       await verifyAgreement(
@@ -600,7 +600,7 @@ describe('lista do VALIDATION-M2.md: RPC que mente de forma coerente (logs e rec
       ),
     ).toEqual({ status: 'mismatch', code: 'credit_mismatch' });
   });
-  it('saque para outra conta ou com outro valor: mismatch/withdrawal_mismatch', async () => {
+  it('withdrawal to another account or with another amount: mismatch/withdrawal_mismatch', async () => {
     const { t, a } = await done();
     expect(
       await verifyAgreement(
@@ -617,7 +617,7 @@ describe('lista do VALIDATION-M2.md: RPC que mente de forma coerente (logs e rec
       ),
     ).toEqual({ status: 'mismatch', code: 'withdrawal_mismatch' });
   });
-  it('aprovação com outro compromisso: mismatch/approval_mismatch', async () => {
+  it('approval with another commitment: mismatch/approval_mismatch', async () => {
     const { t, a } = await done();
     expect(
       await verifyAgreement(
@@ -627,14 +627,14 @@ describe('lista do VALIDATION-M2.md: RPC que mente de forma coerente (logs e rec
       ),
     ).toEqual({ status: 'mismatch', code: 'approval_mismatch' });
   });
-  it('âncora com outro deployer: mismatch/deployment_mismatch', async () => {
+  it('anchor with another deployer: mismatch/deployment_mismatch', async () => {
     const { t, a } = await done();
     expect(await verifyAgreement({ ...t, deployer: stranger }, a.id, reader())).toEqual({
       status: 'mismatch',
       code: 'deployment_mismatch',
     });
   });
-  it('histórico acima de 256 eventos: inconclusive/event_limit', async () => {
+  it('history above 256 events: inconclusive/event_limit', async () => {
     const { t, a } = await done();
     const all = await reader().logs(t.address, a.id, t.deploymentBlock, await pub.getBlockNumber());
     const big = Array.from({ length: 257 }, (_, i) => ({ ...all[i % all.length]!, logIndex: 1000 + i }));
@@ -643,7 +643,7 @@ describe('lista do VALIDATION-M2.md: RPC que mente de forma coerente (logs e rec
       code: 'event_limit',
     });
   });
-  it('o mesmo arquivo em dois acordos: compromissos diferentes, cada um verifica só o seu; o compromisso do outro não aprova', async () => {
+  it('the same file in two agreements: different commitments, each verifies only its own; the other one does not approve', async () => {
     const t = await deploy();
     const a1 = await create(t);
     const a2 = await create(t);
@@ -656,7 +656,7 @@ describe('lista do VALIDATION-M2.md: RPC que mente de forma coerente (logs e rec
     expect(c1).not.toBe(c2);
     const r1 = await verifyAgreement(t, a1.id, reader()),
       r2 = await verifyAgreement(t, a2.id, reader());
-    if (r1.status !== 'verified' || r2.status !== 'verified') throw new Error('esperava verified nos dois');
+    if (r1.status !== 'verified' || r2.status !== 'verified') throw new Error('expected verified for both');
     expect(r1.delivery?.cid).toBe(r2.delivery?.cid);
     await expect(
       pub.simulateContract({
@@ -670,8 +670,8 @@ describe('lista do VALIDATION-M2.md: RPC que mente de forma coerente (logs e rec
   });
 });
 
-describe('classificações decididas no M2c', () => {
-  it('carteira-contrato com evento real é inconclusive/unsupported_caller', async () => {
+describe('classification decisions', () => {
+  it('contract wallet with a real event is inconclusive/unsupported_caller', async () => {
     const t = await deploy();
     const { wallet: w } = await helpers();
     const ts = await now();
@@ -692,14 +692,14 @@ describe('classificações decididas no M2c', () => {
       functionName: 'getAgreement',
       args: [id],
     });
-    expect(ag.buyer.toLowerCase()).toBe(w.toLowerCase()); // o comprador on-chain é a carteira-contrato
+    expect(ag.buyer.toLowerCase()).toBe(w.toLowerCase()); // the on-chain buyer is the contract wallet
     expect(await verifyAgreement(t, id, reader())).toEqual({ status: 'inconclusive', code: 'unsupported_caller' });
   });
-  it('id inexistente é distinguido de falha de RPC pelo revert decodificado', async () => {
+  it('a nonexistent id is told apart from an RPC failure by the decoded revert', async () => {
     const t = await deploy();
     expect(await verifyAgreement(t, 999n, reader())).toEqual({ status: 'inconclusive', code: 'unknown_agreement' });
   });
-  it('ABI declara os erros e viem nomeia WrongCommitment', async () => {
+  it('the ABI declares the errors and viem names WrongCommitment', async () => {
     const t = await deploy();
     const a = await create(t);
     await call(t, buyer, 'fund', [a.id], a.amount);
@@ -725,7 +725,7 @@ describe('classificações decididas no M2c', () => {
   });
 });
 
-// ---------- contratos auxiliares, compilados em memória com o mesmo solc 0.8.28 fixado ----------
+// ---------- helper contracts, compiled in memory with the same pinned solc 0.8.28 ----------
 const HELPERS_SOL = `// SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 interface IDP { function createAgreement(address,uint64,uint64,uint64,bytes32) external returns (uint256); }
@@ -806,8 +806,8 @@ function helpers() {
   })());
 }
 
-describe('trilha HCS suplementar sobre eventos reais do nó', () => {
-  it('uma mensagem por evento verificado; Approved e CreditAvailable dividem a transação com logIndex diferente', async () => {
+describe('supplementary HCS trail over real node events', () => {
+  it('one message per verified event; Approved and CreditAvailable share a transaction with different logIndex', async () => {
     const t = await deploy();
     const a = await create(t);
     await call(t, buyer, 'fund', [a.id], a.amount);
@@ -834,7 +834,7 @@ describe('trilha HCS suplementar sobre eventos reais do nó', () => {
     expect(crossCheckHcs(t, a.id, r, trusted, topic, posted)).toMatchObject({ status: 'consistent', duplicates: 0 });
     expect(crossCheckHcs(t, a.id, r, trusted, topic, posted.slice(0, 3))).toMatchObject({ status: 'incomplete' });
 
-    // Um evento do mesmo contrato mas de outro acordo é ignorado, não confundido.
+    // An event from the same contract but another agreement is ignored, not confused.
     const b = await create(t);
     const other = await verifyAgreement(t, b.id, reader());
     expect(other.status).toBe('verified');
@@ -848,8 +848,8 @@ describe('trilha HCS suplementar sobre eventos reais do nó', () => {
       status: 'consistent',
       ignored: 1,
     });
-    // A mesma transação real atribuída ao acordo errado. Ela foi minerada depois do snapshot de `r`:
-    // com a leitura antiga, não dá para julgar (inconclusive); relida a história, é divergência.
+    // The same real transaction attributed to the wrong agreement. It was mined after the `r` snapshot:
+    // the old read cannot judge it (inconclusive); after re-reading history, it is a mismatch.
     const wrong: TopicMessage = {
       ...foreign,
       sequence: 100,
@@ -869,16 +869,16 @@ describe('trilha HCS suplementar sobre eventos reais do nó', () => {
     });
   });
 
-  it('evento legítimo minerado depois do snapshot, com mensagem já no tópico: inconclusive, e consistente ao reler', async () => {
+  it('legitimate event mined after the snapshot, with its message already on the topic: inconclusive, and consistent on re-read', async () => {
     const t = await deploy();
     const a = await create(t);
-    // Leitura canônica no bloco N: só Created.
+    // Canonical read at block N: only Created.
     const atN = await verifyAgreement(t, a.id, reader());
     expect(atN.status).toBe('verified');
     if (atN.status !== 'verified') return;
     expect(atN.milestones.map(m => m.event)).toEqual(['Created']);
 
-    // Antes da leitura do HCS, o comprador deposita (N+1) e o publicador posta as duas mensagens.
+    // Before the HCS read, the buyer deposits (N+1) and the publisher posts both messages.
     await call(t, buyer, 'fund', [a.id], a.amount);
     const atN1 = await verifyAgreement(t, a.id, reader());
     expect(atN1.status).toBe('verified');
@@ -897,14 +897,14 @@ describe('trilha HCS suplementar sobre eventos reais do nó', () => {
       chunkTotal: 1,
     }));
 
-    // Antes da correção isto dava mismatch/hcs_unknown_event: falsa divergência.
+    // Before the fix this gave mismatch/hcs_unknown_event: a false mismatch.
     expect(crossCheckHcs(t, a.id, atN, trusted, topic, posted)).toEqual({
       status: 'inconclusive',
       code: 'hcs_after_snapshot',
     });
     expect(crossCheckHcs(t, a.id, atN1, trusted, topic, posted)).toMatchObject({ status: 'consistent', duplicates: 0 });
 
-    // Um evento inventado dentro do intervalo lido continua divergência, mesmo com a mensagem posterior.
+    // A fabricated event inside the read range is still a mismatch, even with the later message.
     const invented: TopicMessage = {
       ...posted[0]!,
       sequence: 50,
@@ -920,8 +920,8 @@ describe('trilha HCS suplementar sobre eventos reais do nó', () => {
   });
 });
 
-describe('publicador HCS sobre eventos reais do nó (tópico em memória, sem rede Hedera)', () => {
-  it('publica o que falta, confere; depois do saque publica só o evento novo; leitura velha é recusada', async () => {
+describe('HCS publisher over real node events (in-memory topic, no Hedera network)', () => {
+  it('publishes what is missing and checks it; after withdrawal publishes only the new event; a stale read is rejected', async () => {
     const t = await deploy();
     const a = await create(t);
     await call(t, buyer, 'fund', [a.id], a.amount);
@@ -931,7 +931,7 @@ describe('publicador HCS sobre eventos reais do nó (tópico em memória, sem re
     expect(before.status).toBe('verified');
     const key = { type: 'ED25519' as const, key: '11'.repeat(32) };
     const trusted = { topicId: '0.0.9002', submitKey: key };
-    const f = fakeHcs(trusted.topicId, key, 1); // o mirror mostra cada mensagem uma leitura depois
+    const f = fakeHcs(trusted.topicId, key, 1); // the mirror shows each message one read later
     const fast = { confirmDelayMs: 0 };
 
     const first = await publishHcsTrail(t, a.id, before, trusted, f.reader, f.writer, fast);
@@ -955,7 +955,7 @@ describe('publicador HCS sobre eventos reais do nó (tópico em memória, sem re
     }
     expect(f.submits).toBe(6);
 
-    // A leitura do contrato anterior ao saque não enxerga o Withdrawn que já está no tópico.
+    // The contract read from before the withdrawal does not see the Withdrawn already on the topic.
     expect(await publishHcsTrail(t, a.id, before, trusted, f.reader, f.writer, fast)).toEqual({
       status: 'refused',
       code: 'hcs_after_snapshot',

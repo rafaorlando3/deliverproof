@@ -1,6 +1,6 @@
-// Sobe um `hardhat node` local numa porta livre, só em 127.0.0.1, e devolve a URL.
-// O nó imprime chaves privadas de desenvolvimento: drenamos a saída sem gravar
-// nem anexar ao erro. Somente o marcador de prontidão é reconhecido.
+// Starts a local `hardhat node` on a free port, bound to 127.0.0.1 only, and returns its URL.
+// The node prints development private keys: output is drained without being stored
+// or attached to errors. Only the readiness marker is recognized.
 import { spawn, type ChildProcess } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:net';

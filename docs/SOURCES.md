@@ -17,7 +17,7 @@ layout conventions are attributed above. Dates describe observation, not test re
 
 - Node TypeScript runtime support (reviewed 2026-09-28): https://nodejs.org/docs/latest-v22.x/api/typescript.html — default type stripping from 22.18; used by the cross-language test.
 
-## M2 frontend and manifest references — 2026-09-28
+## Frontend and manifest references (2026-09-28)
 
 - Next.js official installation documentation: https://nextjs.org/docs/app/getting-started/installation . Registry package metadata checked for exact Next 16.3.6, React/React DOM 19.3.0, ESLint 10.11.0 and matching Next ESLint config. Resolution/build is still a cloud gate, not proven by metadata.
 - Official create-scaffold-hbar source snapshots inspected: src/types.ts (manifest schema), src/tasks/copy-template-files.ts (workspace preservation/script normalization), src/utils/template-capabilities.ts. Actual generated installation remains a separate check.
