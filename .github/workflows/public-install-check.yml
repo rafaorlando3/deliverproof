@@ -188,14 +188,22 @@ jobs:
           cd "$RUNNER_TEMP/gen/deliverproof-app"
           fail=0
           : > "$E/13-checks.txt"
-          for s in check next:lint core:test hardhat:test next:build chain:test; do
-            n="14-${s//:/-}"
+          # AGENTS.md also requires clean lockfile install, frontend types before/after build, and formatting.
+          for phase in ci check next:lint core:test hardhat:test next:check-before-build next:build next:check-after-build chain:test format:check; do
+            s="$phase"
+            case "$phase" in next:check-before-build|next:check-after-build) s="next:check" ;; esac
+            n="14-${phase//:/-}"
             start=$(date +%s)
-            npm run "$s" > "$E/$n.raw" 2>&1
+            if [ "$s" = "ci" ]; then
+              npm ci > "$E/$n.raw" 2>&1
+            else
+              npm run "$s" > "$E/$n.raw" 2>&1
+            fi
             rc=$?
             sanitize "$E/$n.raw" > "$E/$n.log"
             rm -f "$E/$n.raw"
-            echo "npm run $s exit=$rc seconds=$(( $(date +%s) - start ))" | tee -a "$E/13-checks.txt"
+            command="npm run $s"; [ "$s" != "ci" ] || command="npm ci"
+            echo "$command phase=$phase exit=$rc seconds=$(( $(date +%s) - start ))" | tee -a "$E/13-checks.txt"
             echo "::group::npm run $s (exit $rc)"
             cat "$E/$n.log"
             echo "::endgroup::"
