@@ -1,6 +1,35 @@
 # Status — 2026-09-29
 
-## Current state — 2026-09-29
+## Current integration — 2026-09-29
+
+Reviewed documentation candidates aaa9c03, bddf04d and f02b96f are integrated.
+The README qualifies the deployment journal as local to a preserved checkout,
+distinguishes unreadable CARs from content mismatches, and explains IPFS retrieval
+without claiming that other transports cannot verify a digest.
+
+The optional HCS verifier from 4eb876f and correction 76b989d is integrated.
+Executable source, configuration, lockfile and tests match
+76b989d610a24d76cf7eec32768cecd6e28b1581 byte for byte. Only documentation differs.
+Contract history remains canonical; HCS is a supplemental comparison, with no
+publisher or UI integration in this increment. Messages beyond the contract
+snapshot yield inconclusive/hcs_after_snapshot; an invented event inside the
+verified range still yields mismatch. Single raw key lengths are validated before
+mirror reads.
+
+Reviewed supplied cloud logs on Node 22.22.2: core 72 passed and 1 skipped,
+Hardhat 38, chain 45; type checks, next build and formatting passed. Lint has the
+existing one React hook warning. The old source fails four targeted unit tests and
+two chain tests; the old-chain command also reports a second filter/no-test exit,
+so the regression claim rests on the displayed assertion failures, not that exit
+code alone. No code or test ran on the owner's Mac. Node 20 and 24 were not rerun
+for this HCS correction.
+
+A fresh public CLI installation of this integration is pending. The prior public
+run below covers e43e970 only. Hedera deployment, live HCS use, public IPFS retrieval
+and final bounty submission remain pending. No testnet credentials or transactions
+are used in these reviews.
+
+## Recorded public installation — 2026-09-29
 
 Done and publicly checkable:
 

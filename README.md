@@ -105,6 +105,7 @@ The full protocol, including the commitment encoding and limits, is in [docs/PRO
 - **Log limits.** `eth_getLogs` refuses ranges over 7 days (`-32004`). The verifier reads history in 6-day windows. A result that is too large (`-32011`, mirror node pagination) counts as a failed read, which is reported as `inconclusive` and never as a partial history.
 - **Addresses.** A contract created by an Ethereum transaction has an EVM address (not long-zero) in the receipt and in its logs. The verifier checks that address against the reviewed deployment.
 - **History.** State is read at one fixed block with historical `eth_call`, and receipts are checked against the block hash from `eth_getBlockByNumber`.
+- **Optional HCS cross-check.** The core can compare a protected topic with verified contract events, including transaction hash and log index. A message mined after the contract snapshot requires a fresh read. This supplemental check never changes the contract verdict; a publisher and UI integration are not included yet. See [the HCS protocol](docs/PROTOCOL.md#hcs-evidence-trail-supplemental-verifier-only).
 
 These behaviors are covered by local tests; public relay samples from `testnet.hashio.io` concern third-party contracts. The checks that still need our own chain-296 deployment are listed in [STATUS](docs/STATUS.md).
 
@@ -167,13 +168,15 @@ links from our own testnet run. A submitted hash alone does not count.
 
 | Suite | Command | Checks |
 | --- | --- | --- |
-| Core (vitest) | `npm run core:test` | 53 passed on 15c65ba: commitments, CAR limits and tampering, verifier codes, property test of the log windows |
-| Contract (Hardhat) | `npm run hardhat:test` | 38 passed on 15c65ba: deadlines, exact deposit, credits and withdrawal, reentrancy, liability invariant, deploy journal and recovery |
-| Chain (vitest + local node) | `npm run chain:test` | 43 passed on 15c65ba: Solidity/TypeScript commitment vectors, reorgs, missing logs, wrong contract, unit scaling, read failures |
+| Core (vitest) | `npm run core:test` | 72 passed, 1 skipped on 76b989d: commitments, CAR limits and tampering, verifier codes, log windows and supplemental HCS checks |
+| Contract (Hardhat) | `npm run hardhat:test` | 38 passed on 76b989d: deadlines, exact deposit, credits and withdrawal, reentrancy, liability invariant, deploy journal and recovery |
+| Chain (vitest + local node) | `npm run chain:test` | 45 passed on 76b989d: Solidity/TypeScript commitment vectors, reorgs, missing logs, wrong contract, unit scaling, read failures and HCS snapshot races |
 
-The counts are the recorded Node-compatibility results on 15c65ba; executable
-source, configuration and lockfile of later documentation commits match that
-source. See [STATUS](docs/STATUS.md) for the exact correspondence.
+The counts above come from reviewed cloud logs on Node 22.22.2 for 76b989d.
+The executable source, configuration, lockfile and tests in this integration match
+that candidate byte for byte; the integration also updates documentation. Node 20
+and 24 were not rerun for HCS. These results are separate from the recorded public
+CLI installation of e43e970. See [STATUS](docs/STATUS.md) for the evidence boundaries.
 `npm run next:lint`, `npm run next:check` before and after `npm run next:build`,
 and `npm run format:check` complete the checks. One known lint warning remains.
 Formatting excludes Markdown and evidence artifacts.

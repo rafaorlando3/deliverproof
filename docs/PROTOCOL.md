@@ -63,6 +63,44 @@ transaction hash. It deliberately does not attest payment, expected chain,
 contract, event, deployment code or canonical history. Full network verification
 is a later gate; UI cannot infer payment from the helper alone.
 
+## HCS evidence trail (supplemental, verifier only)
+
+The contract history checked by `verifyAgreement` stays the only canonical record.
+An optional Hedera Consensus Service topic can carry one message per verified
+contract event. The operator supplies the topic ID and its single submit key
+(ED25519 or ECDSA secp256k1) next to the trusted deployment; neither comes from a
+message, URL, wallet or upload. The submit key must be the raw single key the mirror
+node returns: ED25519 as 32 bytes (64 hex characters) or ECDSA secp256k1 as the
+33-byte compressed point (66 hex characters starting with 02 or 03). DER, `0x`,
+uncompressed or odd-length encodings make the result `inconclusive` before any read.
+
+Message: canonical JSON with fixed key order and no whitespace, at most 1024 bytes,
+never chunked: `v` 1, `domain` "DeliverProof.hcs.v1", `chainId`, lowercase
+`contract`, decimal `agreementId`, `event`, lowercase `tx`, `logIndex`, decimal
+`block`. The event identity is transaction hash plus log index, because Approved or
+Refunded and CreditAvailable share one transaction. Any other encoding is ignored.
+
+The check runs only after the contract history is verified. Results:
+- `consistent`: every verified event has a message; retries count as duplicates
+  and the earliest sequence number stays the reference.
+- `incomplete`: some verified events have no message yet. Publishing can lag.
+- `mismatch`: a message for this agreement names an event, block or transaction
+  the contract history does not have, or the topic submit key differs from the
+  trusted key.
+- `inconclusive`: unprotected, deleted or unexpected topic, unsupported key list,
+  malformed or oversized mirror data, more than 400 messages, or no mirror answer.
+  Also `hcs_after_snapshot`: the contract is read up to its snapshot block and the
+  topic afterwards, so a legitimate event mined after the snapshot, and its message,
+  can appear in between. A message the history does not have, for a block after the
+  snapshot, is neither a match nor a divergence: read the contract again, then the
+  topic, and repeat the check. A message the history does not have inside the blocks
+  already read stays a `mismatch`, even when a later message is also present.
+
+No HCS result approves, pays, refunds or changes the contract verdict. Mirror reads
+use the allowlisted testnet mirror, fixed paths, no credentials, no redirects, a
+10 s timeout, 512 KiB per response and at most 4 pages of 100 messages. Trust
+boundary: an independently queried mirror node, not a state proof.
+
 ## Evidence required before public readiness
 
 Compile/type/test results and reviewed lockfile; clean install; exact

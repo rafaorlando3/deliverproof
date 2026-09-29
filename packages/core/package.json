@@ -8,6 +8,7 @@
     "./artifact": "./src/artifact.ts",
     "./content": "./src/content.ts",
     "./delivery": "./src/delivery.ts",
+    "./hcs": "./src/hcs.ts",
     "./network": "./src/network.ts",
     "./log-windows": "./src/log-windows.ts",
     "./read-errors": "./src/read-errors.ts",
