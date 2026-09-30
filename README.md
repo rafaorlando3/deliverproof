@@ -2,18 +2,39 @@
 
 **Pay for a digital delivery only after the buyer has verified the exact bytes and explicitly approved them.** A Scaffold-HBAR template for Hedera testnet.
 
+[![Public install check: 209f261 passed](https://img.shields.io/badge/public%20install%20209f261-passed-brightgreen)](https://github.com/rafaorlando3/deliverproof/actions/runs/36642106581)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Hedera testnet contract](https://img.shields.io/badge/Hedera%20testnet-0.0.10781121-8259EF)](https://hashscan.io/testnet/contract/0.0.10781121)
+[![HCS topic](https://img.shields.io/badge/HCS%20topic-0.0.10783135-8259EF)](https://hashscan.io/testnet/topic/0.0.10783135)
+
+```sh
+npm create scaffold-hbar@latest -- --template rafaorlando3/deliverproof
+```
+
 DeliverProof is an escrow for one buyer, one supplier and one file. The supplier publishes the file on IPFS and records a commitment on chain: the CID, SHA-256, size and media type. The buyer fetches the file from a public IPFS gateway, checks it in the browser against that commitment and then approves. Approval creates credit for the supplier. Withdrawal is a separate transaction. **Silence never releases money:** after the review deadline, the buyer can reclaim the deposit.
 
 Anyone can check an agreement without a wallet. The verifier replays the contract's history from its public deployment, checks every event and receipt, and reads the stored state at one block. When the data it needs is missing it answers `inconclusive`. It never guesses a success.
 
 > **Status: public source template; contract deployed on Hedera testnet.**
-> Source `1b19cbf` passed the official CLI installation and validation on a
-> GitHub-hosted runner ([run 36637995026](https://github.com/rafaorlando3/deliverproof/actions/runs/36637995026)).
+> Source `209f261` passed the official CLI installation and validation on a
+> GitHub-hosted runner ([run 36642106581](https://github.com/rafaorlando3/deliverproof/actions/runs/36642106581)).
 > The deployment is confirmed on [Hashscan](https://hashscan.io/testnet/transaction/0x5eeeb8fd700bbc15fe538495a804e6048b40024fb83b0c0807738d573cfdd227).
 > Both agreement paths, public IPFS retrieval and the HCS evidence trail are confirmed;
 > see the [public evidence](#public-evidence) and [verification status](docs/STATUS.md).
 > The shipped deployment manifest is `null`, so a fresh app shows a clearly labelled,
 > disabled source preview until a reviewed manifest is installed.
+> [See the public testnet agreements](#see-the-public-testnet-agreements-no-wallet)
+> installs the reviewed public one with one download and a checksum.
+
+## See it
+
+Frames from the recorded demo of source `209f261` with the reviewed public testnet manifest, read without a wallet (the video is linked in [Public evidence](#public-evidence)).
+
+| Agreement 1 on testnet, read without a wallet | The file fetched from a public IPFS gateway and matched |
+| --- | --- |
+| ![Agreement 1: withdrawal confirmed, read from Hedera testnet without a wallet](docs/screenshots/agreement-1-verified.png) | ![IPFS CAR retrieved and verified: bytes_match](docs/screenshots/ipfs-bytes-match.png) |
+| **Every event checked against its receipt and block** | **The HCS trail on Hashscan: one message per verified event** |
+| ![Independent chain read: Created, Funded, Submitted, Approved, CreditAvailable, Withdrawn](docs/screenshots/independent-chain-read.png) | ![HCS topic 0.0.10783135 messages on Hashscan](docs/screenshots/hcs-trail-mirror.png) |
 
 ## What you get
 
@@ -26,7 +47,7 @@ Anyone can check an agreement without a wallet. The verifier replays the contrac
 
 ## Why IPFS is load-bearing
 
-DeliverProof pays for bytes, so the bytes have to be retrievable by anyone and checkable without trusting the supplier's server. Content addressing provides exactly that. The contract stores the CID and the SHA-256; the buyer's browser fetches the CAR from a public trustless gateway, verifies each block against its hash and rebuilds the file before the approve button means anything. In this template, IPFS provides content-addressed retrieval without selecting a supplier-controlled download URL. Removing it would require another retrieval mechanism and changes to the CID/CAR verification flow; a digest alone does not make the file publicly retrievable.
+DeliverProof pays for bytes, so the bytes have to be retrievable by anyone and checkable without trusting the supplier's server. Content addressing provides exactly that. The contract stores the CID and the SHA-256; the buyer's browser fetches the CAR from a public trustless gateway, verifies each block against its hash and rebuilds the file before the approve button means anything. Take IPFS out and the escrow has nothing it can pay for safely: the on-chain commitment is a CID, and the app enables **Approve verified delivery** only after the browser has fetched the bytes by that CID from a public gateway and checked them. No supplier-controlled download URL is ever trusted. A digest alone would let the buyer check a file, but not fetch it from anyone other than the supplier.
 
 The app never uploads anything. It builds the CAR in the browser; the supplier pins it with any IPFS service that supports **CAR import and keeps the root CID** (a plain file upload may re-encode the file and change the CID). The protected testnet proof workflows in [deliverproof-testnet-proof](https://github.com/rafaorlando3/deliverproof-testnet-proof) are configured to pin through Filebase's IPFS RPC `dag/import` and confirm the root.
 
@@ -54,9 +75,23 @@ npm run next:build
 npm run next:start
 ```
 
-Open http://127.0.0.1:3000 (`npm run next:dev` for development). With the stock `null` manifest you see the disabled source preview. With a reviewed deployment manifest installed, enter an agreement number and press **Verify agreement**: the page shows the state, participants, deposit, snapshot block and checked event history without connecting a wallet. The public testnet contract is listed in the evidence table below. Agreements 1 (approval and supplier withdrawal) and 2 (refund and buyer withdrawal) have the public receipts below. The core verifier returned `verified` for both agreements in the public HCS run listed below; an app export and screenshot are not recorded. The template deliberately ships without the operational manifest.
+Open http://127.0.0.1:3000 (`npm run next:dev` for development). With the stock `null` manifest you see the disabled source preview. With a reviewed deployment manifest installed, enter an agreement number and press **Verify agreement**: the page shows the state, participants, deposit, snapshot block and checked event history without connecting a wallet. The public testnet contract is listed in the evidence table below. Agreements 1 (approval and supplier withdrawal) and 2 (refund and buyer withdrawal) have the public receipts below. The core verifier returned `verified` for both agreements in the public HCS run listed below. The template deliberately ships without the operational manifest; the next section installs the reviewed public one so you can repeat the check in the app.
 
-The recorded public install used source `1b19cbfa5c37b832b540d2ac4eef8fd17834a10e`, CLI 0.4.1, Node 22.22.2 and npm@10.9.7, without secrets or a template override ([run 36637995026](https://github.com/rafaorlando3/deliverproof/actions/runs/36637995026)). Installation, all ten required validation commands and the production HTTP boot check passed. Core: 113 passed and 1 opt-in live mirror test skipped; contract: 38 passed; chain: 46 passed. These are recorded results for that source, not proof that future revisions passed. The CLI omits `template.json` and transforms the lockfile and package-manager metadata in three manifests; see [INSTALL](docs/INSTALL.md#external-scaffold-hbar-template-gate). The HTTP boot check does not exercise wallets or live Hedera, IPFS or HCS flows.
+The recorded public install used source `209f2619ed6b3825f4f63e66f051d12830828353`, CLI 0.4.1, Node 22.22.2 and npm@10.9.7, without secrets or a template override ([run 36642106581](https://github.com/rafaorlando3/deliverproof/actions/runs/36642106581)). Installation, all ten required validation commands and the production HTTP boot check passed. Core: 113 passed and 1 opt-in live mirror test skipped; contract: 38 passed; chain: 46 passed. These are recorded results for that source, not proof that future revisions passed. The CLI omits `template.json` and transforms the lockfile and package-manager metadata in three manifests; see [INSTALL](docs/INSTALL.md#external-scaffold-hbar-template-gate). The HTTP boot check does not exercise wallets or live Hedera, IPFS or HCS flows.
+
+### See the public testnet agreements (no wallet)
+
+The reviewed manifest of the public testnet contract is public data: address, deployment transaction, block and runtime code hash. Install it in your scaffolded project and rebuild:
+
+```sh
+curl -fsSL -o packages/nextjs/lib/deployment.json \
+  https://raw.githubusercontent.com/rafaorlando3/deliverproof-testnet-proof/7fbb6fc96a25d2ba549315ba64d3016ffbfaa4b2/packages/nextjs/lib/deployment.json
+echo "606e36b3738b5b9577c17fa7e6e4cc9b15ec4b31fde4cb7521658875de0beb64  packages/nextjs/lib/deployment.json" | sha256sum -c -
+npm run next:build
+npm run next:start
+```
+
+On macOS, use `shasum -a 256 -c -` in place of `sha256sum -c -`. Open http://127.0.0.1:3000, enter `1` and press **Verify agreement**. The app runs `verifyAgreement` against the contract through `testnet.hashio.io`: it checks the runtime code hash against the manifest, replays the event history and shows the state, participants, deposit and snapshot block. Then press **Retrieve and verify IPFS** to fetch the delivered CAR from a public gateway and compare the rebuilt file with the on-chain commitment. Agreement `2` shows the refund path. No wallet and no test HBAR are needed. To return to the stock template, write `null` back to `packages/nextjs/lib/deployment.json` and rebuild; do not commit the operational manifest to your template.
 
 ### Run the app against a local chain
 
@@ -101,6 +136,12 @@ States: `Draft → Funded → Submitted → Approved`, or `Funded/Submitted → 
 The full protocol, including the commitment encoding and limits, is in [docs/PROTOCOL.md](docs/PROTOCOL.md). The step-by-step workflow for both participants is in [docs/INSTALL.md](docs/INSTALL.md#workflow-and-file-availability).
 
 ## Hedera details handled for you
+
+| Hedera service | What the template does with it | Public evidence |
+| --- | --- | --- |
+| Smart contracts on the Hedera EVM (chain 296), through the JSON-RPC relay | Holds the escrow: exact deposit, deadlines, commitment approval, credit and withdrawal; read back at one fixed block by the verifier | Contract [0.0.10781121](https://hashscan.io/testnet/contract/0.0.10781121), source verified |
+| Consensus Service (HCS) | One canonical message per verified contract event, published by the opt-in publisher through the Hiero SDK | Topic [0.0.10783135](https://hashscan.io/testnet/topic/0.0.10783135), 11 messages |
+| Mirror node REST API | Reads the topic, its keys and its messages, and compares them with the contract history by transaction hash and log index | [Topic messages](https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10783135/messages) |
 
 - **Units.** Solidity on Hedera sees tinybar (8 decimals). JSON-RPC `value` uses 18 decimals, so it is tinybar × 10^10. The app and the deploy script convert explicitly and never use floating point.
 - **Log limits.** `eth_getLogs` refuses ranges over 7 days (`-32004`). The verifier reads history in 6-day windows. A result that is too large (`-32011`, mirror node pagination) counts as a failed read, which is reported as `inconclusive` and never as a partial history.
@@ -151,19 +192,19 @@ before accepting a candidate.
 
 ## Public evidence
 
-Source installation, contract deployment, both agreement paths and the HCS trail have public evidence below. The delivered file is retrievable by CID from public IPFS gateways. An app export and screenshot of the verifier are not recorded. A queued run or submitted hash alone does not count.
+Source installation, contract deployment, both agreement paths and the HCS trail have public evidence below. The delivered file is retrievable by CID from public IPFS gateways. A [demo video](https://youtu.be/7tJY2DXChnU) shows the app verifying both testnet agreements without a wallet. A queued run or submitted hash alone does not count.
 
 | Required evidence | Current state |
 | --- | --- |
 | Public source repository | Done: https://github.com/rafaorlando3/deliverproof |
-| Fresh external CLI installation on a clean runner | Done for source `1b19cbf`: [run 36637995026](https://github.com/rafaorlando3/deliverproof/actions/runs/36637995026), evidence artifact sha256 `e8277d94902130ca08b8b60382ab70b29bb05d28119bf8f77fdc0b8c590f3286` |
+| Fresh external CLI installation on a clean runner | Done for source `209f261`: [run 36642106581](https://github.com/rafaorlando3/deliverproof/actions/runs/36642106581), evidence artifact sha256 `9bd3b4973dcb78e7718e0098a23c98aa8f1bb2500f8e22318cd09f0bdd5766a3`; earlier source `1b19cbf` in [run 36637995026](https://github.com/rafaorlando3/deliverproof/actions/runs/36637995026) |
 | Contract address, runtime hash and canonical deployment receipt | Confirmed: contract `0.0.10781121`, [Hashscan transaction](https://hashscan.io/testnet/transaction/0x5eeeb8fd700bbc15fe538495a804e6048b40024fb83b0c0807738d573cfdd227), [reviewed deployment manifest](https://github.com/rafaorlando3/deliverproof-testnet-proof/blob/7fbb6fc96a25d2ba549315ba64d3016ffbfaa4b2/packages/nextjs/lib/deployment.json); source verified with an exact match on [Sourcify](https://sourcify.dev/server/v2/contract/296/0x0b8329d55ffa4fb7c55cc9e83de1d40cd966b8cb) |
 | First agreement creation and exact deposit (tinybar × 10^10 in RPC) | Confirmed: [create](https://hashscan.io/testnet/transaction/0x189592885e9552b49216c293ab14a08b09c8c270221cad6ae5a1733feeabc532), [deposit of 0.5 test HBAR](https://hashscan.io/testnet/transaction/0xaedc448179ac2a4cddd997e2ef9811410dc2d383360da9a72523d182b3a6b457) |
 | Delivery commitment, preserved-root CID and public CAR retrieval | Confirmed: [submit](https://hashscan.io/testnet/transaction/0x176d23d3bca0fb0f80cd44e106d0e3e048be9994bc965e39e615f9912085307a) with CID `bafkreicmidb4okorv4g457l5pfygk6okbrbsgh2wtrj6qy3m645os7tjva` (101 bytes, SHA-256 `4c40c3c729d1af0dcefd7d79706579ca0c43231f569c53e8636cf73ae97e69a8`); [trustless CAR from ipfs.io](https://ipfs.io/ipfs/bafkreicmidb4okorv4g457l5pfygk6okbrbsgh2wtrj6qy3m645os7tjva?format=car) and [file from the Filebase gateway](https://ipfs.filebase.io/ipfs/bafkreicmidb4okorv4g457l5pfygk6okbrbsgh2wtrj6qy3m645os7tjva) |
 | Buyer approval and separate supplier withdrawal receipts | Confirmed: [approve](https://hashscan.io/testnet/transaction/0x4c683f724872cc56633d1679590d0645c96edc5af23ce5bf25f466eb127f94a1) of commitment `0x5a3f068179260a6ccb5f25dffa82b847e911949273567068dc4749b5a4d6ed13`, [supplier withdrawal](https://hashscan.io/testnet/transaction/0x848ba756e9046af24bc7b7df8790f2e9100123378eff63ab747d66aa60fe1707) |
 | Second agreement refund and separate buyer withdrawal receipts | Confirmed: [create](https://hashscan.io/testnet/transaction/0x4899bf3759415a0d81f1361c67c4de4722b9ea418a46cb43e2accc7d68d54f97), [deposit of 0.3 test HBAR](https://hashscan.io/testnet/transaction/0xae11b725a25a77c7e4b473197c06efb4ad024a17475ad63844cb449fd50446a1), [refund after the review deadline](https://hashscan.io/testnet/transaction/0x14660c459c7d79d6f3612d5234aab3bbab99d192dbd14a83eabcf39df2e93411), [buyer withdrawal](https://hashscan.io/testnet/transaction/0x9e739a18ce4ebf3de402684ed267c9b3d1659db5384080547a83ad9567324930) |
 | HCS evidence trail, read from the mirror node | Confirmed: topic [0.0.10783135](https://hashscan.io/testnet/topic/0.0.10783135) with the operator's submit key and no admin key ([creation](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.10776776-1790719954-377000000)); 11 messages, one per contract event of agreements 1 and 2, published by [run 36640306565](https://github.com/rafaorlando3/deliverproof-testnet-proof/actions/runs/36640306565); [messages on the mirror node](https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10783135/messages) |
-| Verifier observation for the same agreements | Recorded in CI: the HCS step compares a topic only after the core verifier returns `verified`, and it reported a consistent trail for agreements 1 and 2 in [run 36640306565](https://github.com/rafaorlando3/deliverproof-testnet-proof/actions/runs/36640306565). An app export and screenshot are not recorded. |
+| Verifier observation for the same agreements | Recorded in CI: the HCS step compares a topic only after the core verifier returns `verified`, and it reported a consistent trail for agreements 1 and 2 in [run 36640306565](https://github.com/rafaorlando3/deliverproof-testnet-proof/actions/runs/36640306565). The [demo video](https://youtu.be/7tJY2DXChnU) records the app verifying both agreements and retrieving the delivered CAR from ipfs.io. |
 
 The completed [proof workflow run 36636649271](https://github.com/rafaorlando3/deliverproof-testnet-proof/actions/runs/36636649271) resumes the same proof after a nonce-read guard stopped the first attempt. It preserves the earlier transaction hashes and sends only the remaining buyer withdrawal. All assets and amounts are synthetic/testnet.
 

@@ -77,7 +77,7 @@ npm run hardhat:test
 npm run next:lint
 npm run next:check
 npm run next:build
-npm run next:check
+npm run next:check   # again, after next build generates the route types
 npm run chain:test
 npm run format:check
 ```

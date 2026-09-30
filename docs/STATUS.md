@@ -1,11 +1,11 @@
 # Verification status
 
-Last reviewed: 2026-09-29. This page separates completed public evidence from pending checks. Both agreement paths, public IPFS retrieval and the HCS evidence trail have confirmed evidence below. An app export of the verifier remains pending; a submitted or failed run alone is not a successful proof.
+Last reviewed: 2026-09-30. This page separates completed public evidence from pending checks. Both agreement paths, public IPFS retrieval and the HCS evidence trail have confirmed evidence below. A [demo video](https://youtu.be/7tJY2DXChnU) records the app verifying both agreements; a submitted or failed run alone is not a successful proof.
 
 ## Source template
 
-- Repository: https://github.com/rafaorlando3/deliverproof, last validated commit `1b19cbfa5c37b832b540d2ac4eef8fd17834a10e`.
-- Fresh install through the official CLI, `npm create scaffold-hbar@latest -- --template rafaorlando3/deliverproof`, on a GitHub-hosted runner: [run 36637995026](https://github.com/rafaorlando3/deliverproof/actions/runs/36637995026). It covers install, lint with zero warnings, type check, build, the three test suites and a production start on 127.0.0.1 that answers 200.
+- Repository: https://github.com/rafaorlando3/deliverproof, last validated commit `209f2619ed6b3825f4f63e66f051d12830828353`.
+- Fresh install through the official CLI, `npm create scaffold-hbar@latest -- --template rafaorlando3/deliverproof`, on a GitHub-hosted runner: [run 36642106581](https://github.com/rafaorlando3/deliverproof/actions/runs/36642106581) (evidence artifact sha256 `9bd3b4973dcb78e7718e0098a23c98aa8f1bb2500f8e22318cd09f0bdd5766a3`). It covers install, lint with zero warnings, type check, build, the three test suites and a production start on 127.0.0.1 that answers 200.
 
 | Suite | Command | Result |
 | --- | --- | --- |
@@ -13,7 +13,7 @@ Last reviewed: 2026-09-29. This page separates completed public evidence from pe
 | Contract (Hardhat) | `npm run hardhat:test` | 38 passed |
 | Chain (vitest and a local node) | `npm run chain:test` | 46 passed |
 
-The run above used source 1b19cbfa5c37b832b540d2ac4eef8fd17834a10e, Node 22.22.2 and npm@10.9.7. Later source changes require a new recorded validation. The boot check covers HTTP responses only. The automated suites include local-chain, fixture and offline checks; they do not establish live wallet acceptance, Filebase/IPFS availability or HCS transmission. The skipped core test is an opt-in live mirror test, not a live-network success. Completed testnet evidence is limited to the rows explicitly linked below.
+The run above used source 209f2619ed6b3825f4f63e66f051d12830828353, CLI 0.4.1, Node 22.22.2 and npm@10.9.7. Commits after it change documentation only; any executable change requires a new recorded validation. The earlier source 1b19cbf passed the same checks in [run 36637995026](https://github.com/rafaorlando3/deliverproof/actions/runs/36637995026). The boot check covers HTTP responses only. The automated suites include local-chain, fixture and offline checks; they do not establish live wallet acceptance, Filebase/IPFS availability or HCS transmission. The skipped core test is an opt-in live mirror test, not a live-network success. Completed testnet evidence is limited to the rows explicitly linked below.
 
 ## Hedera testnet
 
@@ -26,7 +26,7 @@ The template ships with `packages/nextjs/lib/deployment.json` set to `null`. Tes
 | Agreement 2: refund after the review deadline and buyer withdrawal | Confirmed: [create](https://hashscan.io/testnet/transaction/0x4899bf3759415a0d81f1361c67c4de4722b9ea418a46cb43e2accc7d68d54f97), [deposit](https://hashscan.io/testnet/transaction/0xae11b725a25a77c7e4b473197c06efb4ad024a17475ad63844cb449fd50446a1), [refund](https://hashscan.io/testnet/transaction/0x14660c459c7d79d6f3612d5234aab3bbab99d192dbd14a83eabcf39df2e93411), [withdraw](https://hashscan.io/testnet/transaction/0x9e739a18ce4ebf3de402684ed267c9b3d1659db5384080547a83ad9567324930) |
 | Delivered file on IPFS: CAR and public gateway retrieval matching the recorded CID | Confirmed: CID recomputed from the on-chain SHA-256; [CAR from ipfs.io](https://ipfs.io/ipfs/bafkreicmidb4okorv4g457l5pfygk6okbrbsgh2wtrj6qy3m645os7tjva?format=car) |
 | HCS evidence topic, read from the mirror node | Confirmed: topic [0.0.10783135](https://hashscan.io/testnet/topic/0.0.10783135), memo `DeliverProof.hcs.v1`, submit key of the operator account, no admin key ([creation](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.10776776-1790719954-377000000)); 11 messages, one per contract event of agreements 1 and 2, published by [run 36640306565](https://github.com/rafaorlando3/deliverproof-testnet-proof/actions/runs/36640306565) and read back from the [mirror node](https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10783135/messages) |
-| Verifier observation for both agreements | Recorded in CI: the HCS step compares the topic only after `verifyAgreement` returns `verified`; [run 36640306565](https://github.com/rafaorlando3/deliverproof-testnet-proof/actions/runs/36640306565) reported a consistent trail for agreements 1 and 2. App export and screenshot: pending |
+| Verifier observation for both agreements | Recorded in CI: the HCS step compares the topic only after `verifyAgreement` returns `verified`; [run 36640306565](https://github.com/rafaorlando3/deliverproof-testnet-proof/actions/runs/36640306565) reported a consistent trail for agreements 1 and 2. App observation: [demo video](https://youtu.be/7tJY2DXChnU) |
 | Contract source verified on Hashscan | Verified: exact match for creation and runtime bytecode on [Sourcify](https://sourcify.dev/server/v2/contract/296/0x0b8329d55ffa4fb7c55cc9e83de1d40cd966b8cb); the [Hashscan contract page](https://hashscan.io/testnet/contract/0.0.10781121) shows the source as verified (full match) |
 
 The [proof workflow run 36636649271](https://github.com/rafaorlando3/deliverproof-testnet-proof/actions/runs/36636649271) completed the same two-agreement proof after reconciling the saved state. Earlier confirmed transactions were not repeated.
